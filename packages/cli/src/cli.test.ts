@@ -41,6 +41,25 @@ function jsonResponse(status: number, body: unknown, headers: Record<string, str
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } })
 }
 
+/** 기록 파일은 JSONL이다(한 줄에 레코드 하나). 테스트에서 통째로 읽어 배열로
+ * 돌려준다. */
+async function readStoredRecords(): Promise<unknown[]> {
+  const file = resolveStoreFile({ env: {} as NodeJS.ProcessEnv, homedir: () => tmpHome })
+  const raw = await fs.readFile(file, 'utf8')
+  return raw
+    .split('\n')
+    .filter((line) => line.trim() !== '')
+    .map((line) => JSON.parse(line))
+}
+
+async function storeFileExists(): Promise<boolean> {
+  const file = resolveStoreFile({ env: {} as NodeJS.ProcessEnv, homedir: () => tmpHome })
+  return fs
+    .access(file)
+    .then(() => true)
+    .catch(() => false)
+}
+
 describe('validate 명령', () => {
   it('없는 파일 → 2', async () => {
     const io = makeIo()
@@ -141,7 +160,7 @@ describe('publish 명령', () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(201, body)))
     const io = makeIo()
     await run(['publish', file], io)
-    const stored = JSON.parse(await fs.readFile(resolveStoreFile({ env: {} as NodeJS.ProcessEnv, homedir: () => tmpHome }), 'utf8'))
+    const stored = await readStoredRecords()
     expect(stored).toHaveLength(1)
     expect(stored[0]).toMatchObject({ slug: 'ab12cd34', title: '짜장 vs 짬뽕', kind: 'balance' })
   })
@@ -159,7 +178,7 @@ describe('publish 명령', () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(201, body)))
     const io = makeIo()
     await run(['publish', file, '--no-save'], io)
-    await expect(fs.access(resolveStoreFile({ env: {} as NodeJS.ProcessEnv, homedir: () => tmpHome }))).rejects.toThrow()
+    expect(await storeFileExists()).toBe(false)
   })
 
   it('검사 실패(400 validation_failed) → 1, blocker를 출력한다', async () => {
@@ -188,7 +207,23 @@ describe('publish 명령', () => {
     expect(code).toBe(4)
   })
 
-  it('fetch가 던지면 4', async () => {
+  it('연결 자체가 안 되면(ECONNREFUSED류) 4', async () => {
+    const file = path.join(tmpDir, 'test.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        const err = new Error('fetch failed') as Error & { cause?: unknown }
+        err.cause = { code: 'ECONNREFUSED' }
+        throw err
+      }),
+    )
+    const io = makeIo()
+    const code = await run(['publish', file], io)
+    expect(code).toBe(4)
+  })
+
+  it('원인 코드를 알 수 없는 fetch 실패는 5(확실하지 않음)다', async () => {
     const file = path.join(tmpDir, 'test.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     vi.stubGlobal(
@@ -199,7 +234,7 @@ describe('publish 명령', () => {
     )
     const io = makeIo()
     const code = await run(['publish', file], io)
-    expect(code).toBe(4)
+    expect(code).toBe(5)
   })
 })
 
@@ -462,13 +497,15 @@ describe('publish 결과 불명(exit 5)', () => {
     }
   })
 
-  it('연결 자체가 안 되면(fetch가 즉시 던짐) 4 그대로다', async () => {
+  it('연결 자체가 안 되면(cause.code가 ECONNREFUSED류) 4 그대로다', async () => {
     const file = path.join(tmpDir, 'test.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => {
-        throw new Error('ECONNREFUSED')
+        const err = new Error('fetch failed') as Error & { cause?: unknown }
+        err.cause = { code: 'ECONNREFUSED' }
+        throw err
       }),
     )
     const io = makeIo()
@@ -502,6 +539,87 @@ describe('publish 결과 불명(exit 5)', () => {
     const parsed = JSON.parse(io.stdoutText())
     expect(parsed.error.code).toBe('publish_unknown')
     expect(parsed.raw).toContain('"ok":true')
+  })
+
+  it('원문에서 slug/url/ownerUrl을 뽑을 수 있으면 unconfirmed 레코드로 저장한다', async () => {
+    const file = path.join(tmpDir, 'test.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance', title: '짜장 vs 짬뽕' }))
+    // ok: true인데 서버가 다른 필드도 없이 body 전체가 이상한 경우를 흉내:
+    // slug/url/ownerUrl은 있지만 우리 계약과 완전히 일치하진 않는다고 가정해도
+    // 뽑을 수 있는 값이 있으면 기록해 둔다.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(201, { ok: true, slug: 'ab12cd34', url: 'https://letsplaytest.com/t/ab12cd34' })),
+    )
+    const io = makeIo()
+    const code = await run(['publish', file], io)
+    expect(code).toBe(5)
+    // ownerUrl이 없으므로 canSave 조건(세 필드 모두)을 못 채워 저장은 안 된다 —
+    // 이 케이스는 "일부만 뽑힘"을 확인하는 용도다.
+    expect(await storeFileExists()).toBe(false)
+  })
+
+  it('slug/url/ownerUrl을 모두 뽑을 수 있으면 unconfirmed: true로 저장하고 안내한다', async () => {
+    const file = path.join(tmpDir, 'test.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance', title: '짜장 vs 짬뽕' }))
+    // `ok` 필드가 없어서(계약 위반) decideOutcome이 bad_response로 4를 내지만,
+    // 상태가 200(ambiguous)이라 derivePublishExitCode가 5로 올린다. 그 와중에
+    // slug/url/ownerUrl은 다 들어 있어서 뽑아낼 수 있다.
+    const raw = JSON.stringify({
+      slug: 'ab12cd34',
+      url: 'https://letsplaytest.com/t/ab12cd34',
+      ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
+    })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(raw, { status: 200 })))
+    const io = makeIo()
+    const code = await run(['publish', file], io)
+    expect(code).toBe(5)
+    expect(io.stderrText()).toContain('list')
+    const stored = await readStoredRecords()
+    expect(stored).toHaveLength(1)
+    expect(stored[0]).toMatchObject({ slug: 'ab12cd34', unconfirmed: true })
+  })
+
+  it('--no-save면 뽑은 링크가 있어도 저장하지 않는다', async () => {
+    const file = path.join(tmpDir, 'test.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(201, { ok: true })))
+    const io = makeIo()
+    const code = await run(['publish', file, '--no-save'], io)
+    expect(code).toBe(5)
+    expect(await storeFileExists()).toBe(false)
+  })
+})
+
+describe('서버가 결과 불명을 스스로 알림(publish_unknown) / 알려진 4 코드', () => {
+  it('JSON 502 publish_unknown → 5', async () => {
+    const file = path.join(tmpDir, 'test.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    const body = { ok: false, error: { code: 'publish_unknown', message: '서버도 결과를 몰라요' } }
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(502, body)))
+    const io = makeIo()
+    const code = await run(['publish', file], io)
+    expect(code).toBe(5)
+  })
+
+  it('JSON 500 internal → 4(알려진 코드는 그대로)', async () => {
+    const file = path.join(tmpDir, 'test.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    const body = { ok: false, error: { code: 'internal', message: '문제가 생겼어요' } }
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(500, body)))
+    const io = makeIo()
+    const code = await run(['publish', file], io)
+    expect(code).toBe(4)
+  })
+
+  it('JSON 5xx의 모르는 코드는 5(안전한 쪽)', async () => {
+    const file = path.join(tmpDir, 'test.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    const body = { ok: false, error: { code: 'brand_new_server_code', message: 'm' } }
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(500, body)))
+    const io = makeIo()
+    const code = await run(['publish', file], io)
+    expect(code).toBe(5)
   })
 })
 
@@ -547,14 +665,24 @@ describe('validate 성공 + warnings', () => {
 })
 
 describe('list의 손상된 기록 파일', () => {
-  it('깨진 파일이면 stderr로 알리고 빈 목록을 보여 준다', async () => {
+  it('깨진 줄이 있으면 stderr로 알리고 나머지만 보여 준다', async () => {
     const configDir = path.join(tmpHome, '.config', 'letsplaytest')
     await fs.mkdir(configDir, { recursive: true })
-    await fs.writeFile(path.join(configDir, 'tests.json'), '{ broken')
+    const good = {
+      slug: 'abc',
+      title: '좋은 기록',
+      kind: 'balance',
+      url: 'https://letsplaytest.com/t/abc',
+      ownerUrl: 'https://letsplaytest.com/t/abc/owner/tok',
+      api: 'https://letsplaytest.com',
+      publishedAt: '2026-09-26T00:00:00.000Z',
+    }
+    await fs.writeFile(path.join(configDir, 'tests.jsonl'), `${JSON.stringify(good)}\n{ broken\n`)
     const io = makeIo()
     const code = await run(['list'], io)
     expect(code).toBe(0)
-    expect(io.stderrText()).toContain('손상')
+    expect(io.stderrText()).toContain('깨진')
+    expect(io.stdoutText()).toContain('좋은 기록')
   })
 })
 
@@ -618,9 +746,7 @@ describe('동시 publish', () => {
     )
     await Promise.all(files.map((file) => run(['publish', file], makeIo())))
 
-    const stored = JSON.parse(
-      await fs.readFile(resolveStoreFile({ env: {} as NodeJS.ProcessEnv, homedir: () => tmpHome }), 'utf8'),
-    )
+    const stored = await readStoredRecords()
     expect(stored).toHaveLength(10)
   })
 })

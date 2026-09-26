@@ -13,19 +13,28 @@ export interface HttpResponse {
 }
 
 /**
- * `timedOut`: 우리 타이머가 먼저 끊었다(헤더를 기다리던 중이든, 본문을 읽던
- * 중이든 — POST는 요청 바이트가 이미 다 나간 뒤일 때가 많아 publish라면 서버가
- * 이미 처리했을 수 있다).
- * `bodyInterrupted`: `fetch()`는 성공해 응답(헤더)까지는 받았지만 본문을 읽는
- * 도중 연결이 끊겼다(우리 타임아웃 때문이 아니다) — 이것도 publish라면 요청은
- * 이미 도달했을 가능성이 높다.
- * 이 두 경우와 달리 아무 값도 없는 `{ ok: false }`는 `fetch()` 자체가 거부된
- * 것(DNS 실패, ECONNREFUSED 등) — 요청이 나가지도 못했다는 뜻이라 publish라도
- * "확실히 발행 안 됨"으로 다룰 수 있다(스펙 §7.4, 2026-09-26 조율자 결정).
+ * `fetch()`가 실패하는 세 가지 모양(2026-09-26 세 번째 리뷰 라운드 — 실제 net/http
+ * 서버로 재현해 확정):
+ * - `timeout`: 우리 타이머가 먼저 끊었다(헤더를 기다리던 중이든, 본문을 읽던
+ *   중이든). POST는 이 시점에 요청 바이트가 이미 다 나가 있는 경우가 많다 —
+ *   publish라면 서버가 이미 처리했을 수 있다는 뜻이라 "확실히 실패"로 볼 수 없다.
+ * - `connected-then-failed`: `fetch()`는 성공해 응답(헤더)까지 받았지만 본문을
+ *   읽는 도중 연결이 끊겼다(우리 타임아웃 때문이 아니다). 헤더를 받았다는 건
+ *   TCP 연결이 서버까지 열려 요청이 도달했다는 뜻이므로, 이것도 "확실히 실패"가
+ *   아니다.
+ * - `connect-failed`: `fetch()` 자체가 거부됐다. 이 경우조차 하나로 뭉뚱그릴 수
+ *   없다 — `ECONNREFUSED`처럼 TCP 핸드셰이크 전에 끝나는 오류는 요청이 정말
+ *   안 나간 것이지만, `ECONNRESET`처럼 연결은 됐다가 끊긴 오류는 요청이 이미
+ *   갔을 수 있다. 그래서 `code`(Node fetch/undici가 `error.cause.code`에 싣는
+ *   저수준 errno/오류명)를 함께 돌려준다 — 호출자가(주로 publish) 그 값으로
+ *   "확실히 안 감"과 "확실하지 않음"을 가른다.
  */
-export type HttpResult =
-  | { ok: true; response: HttpResponse }
-  | { ok: false; timedOut?: boolean; bodyInterrupted?: boolean }
+export type HttpFailure =
+  | { kind: 'timeout' }
+  | { kind: 'connected-then-failed' }
+  | { kind: 'connect-failed'; code?: string; message?: string }
+
+export type HttpResult = { ok: true; response: HttpResponse } | { ok: false; failure: HttpFailure }
 
 /** 서버가 정해진 시간 안에 응답하지 않으면(헤더든 본문이든) 포기한다 — 응답
  * 없는 서버 때문에 에이전트가 영영 멈춰 있게 두지 않는다. `AbortController`의
@@ -39,6 +48,20 @@ export const DEFAULT_TIMEOUT_MS = 30_000
  * §7.4), 너무 짧게 끊어 애매한 상태를 자주 만들지 않는다(2026-09-26 조율자 결정). */
 export const PUBLISH_TIMEOUT_MS = 60_000
 
+function extractCode(e: unknown): string | undefined {
+  const err = e as { code?: unknown; cause?: { code?: unknown } } | undefined
+  if (typeof err?.cause?.code === 'string') return err.cause.code
+  if (typeof err?.code === 'string') return err.code
+  return undefined
+}
+
+function extractMessage(e: unknown): string | undefined {
+  const err = e as { cause?: { message?: unknown }; message?: unknown } | undefined
+  if (typeof err?.cause?.message === 'string') return err.cause.message
+  if (typeof err?.message === 'string') return err.message
+  return undefined
+}
+
 export async function httpFetch(
   url: string,
   init: RequestInit,
@@ -49,9 +72,10 @@ export async function httpFetch(
   let res: Response
   try {
     res = await fetch(url, { ...init, signal: controller.signal })
-  } catch {
+  } catch (e) {
     clearTimeout(timer)
-    return controller.signal.aborted ? { ok: false, timedOut: true } : { ok: false }
+    if (controller.signal.aborted) return { ok: false, failure: { kind: 'timeout' } }
+    return { ok: false, failure: { kind: 'connect-failed', code: extractCode(e), message: extractMessage(e) } }
   }
   try {
     const text = await res.text()
@@ -59,8 +83,47 @@ export async function httpFetch(
     return { ok: true, response: { status: res.status, headers: res.headers, text } }
   } catch {
     clearTimeout(timer)
-    return controller.signal.aborted ? { ok: false, timedOut: true } : { ok: false, bodyInterrupted: true }
+    if (controller.signal.aborted) return { ok: false, failure: { kind: 'timeout' } }
+    return { ok: false, failure: { kind: 'connected-then-failed' } }
   }
+}
+
+/**
+ * 요청이 **확실히** 서버에 닿지 못했다고 볼 수 있는 저수준 오류 코드만 여기
+ * 둔다(2026-09-26 조율자 결정) — 그 밖의 모든 `connect-failed`는 "확실하지
+ * 않음"으로 다룬다. DNS·라우팅·TLS 핸드셰이크·로컬 URL 검증 오류는 TCP로 실제
+ * 바이트가 오가기 전에 끝나므로 여기 들어간다. `ECONNRESET`·`UND_ERR_SOCKET`·
+ * `HPE_*`처럼 연결 자체는 있었을 수 있는 오류는 일부러 뺐다.
+ */
+const DEFINITE_CONNECT_FAILURE_CODES = new Set([
+  'ECONNREFUSED',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'DEPTH_ZERO_SELF_SIGNED_CERT',
+  'SELF_SIGNED_CERT_IN_CHAIN',
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+  'ERR_TLS_CERT_ALTNAME_INVALID',
+  'ERR_INVALID_URL',
+  'ERR_UNSUPPORTED_ESM_URL_SCHEME',
+])
+
+export function isDefiniteConnectFailure(code: string | undefined): boolean {
+  if (code === undefined) return false
+  if (DEFINITE_CONNECT_FAILURE_CODES.has(code)) return true
+  return code.startsWith('CERT_')
+}
+
+/**
+ * publish 전용 판정: 네트워크 실패를 4(확실히 발행 안 됨)와 5(발행됐을 수
+ * 있음)로 가른다. `timeout`·`connected-then-failed`는 언제나 5다(2026-09-26
+ * 조율자 결정) — `connect-failed`만 코드를 본다.
+ */
+export function classifyPublishNetworkFailure(failure: HttpFailure): 4 | 5 {
+  if (failure.kind !== 'connect-failed') return 5
+  return isDefiniteConnectFailure(failure.code) ? 4 : 5
 }
 
 /**
@@ -144,7 +207,9 @@ export type ResponseMode = 'guide' | 'contract'
  * 낸다고 계약돼 있다(스펙 §4.1). 그래서 JSON이 아니거나 `ok`가 boolean이 아니면
  * — 프록시 오류 페이지, 빈 본문, 스키마가 다른 응답 — 성공(`exitCode: 0`)으로
  * 잘못 읽지 않도록 무조건 4로 떨어뜨리고, 에이전트가 원인을 알 수 있게 합성한
- * `bad_response` 오류 본문을 만든다.
+ * `bad_response` 오류 본문을 만든다. **publish**는 이 4를 그대로 쓰지 않고
+ * `derivePublishExitCode`로 한 번 더 거른다(상태가 2xx/5xx면 5로 올린다) —
+ * validate는 저장을 안 하니 애매할 게 없어 그대로 4를 쓴다.
  *
  * `mode: 'guide'`는 성공 응답에 `ok` 필드가 없다(마크다운 텍스트 또는 설명서
  * JSON 그 자체이기 때문) — 그래서 상태 코드로 성공을 판단한다.
@@ -190,6 +255,81 @@ export function decideOutcome(response: HttpResponse, mode: ResponseMode = 'cont
 
   if (parsed.ok === false) return classifyError(parsed)
   return { exitCode: 0, json: parsed, retryAfterSeconds }
+}
+
+function outcomeErrorCode(outcome: Outcome): string | undefined {
+  return isRecord(outcome.json) && isRecord(outcome.json.error) && typeof outcome.json.error.code === 'string'
+    ? outcome.json.error.code
+    : undefined
+}
+
+function isBadResponseOutcome(outcome: Outcome): boolean {
+  return outcome.exitCode === 4 && outcomeErrorCode(outcome) === 'bad_response'
+}
+
+export function truncateRaw(text: string, maxChars = 2000): string {
+  return text.length > maxChars ? `${text.slice(0, maxChars)}…` : text
+}
+
+/** publish에서 "확실히 실패"로 봐도 되는 유일한 4 오류 코드들. 이 목록에 없는
+ * 코드(서버가 새 코드를 추가했거나, `publish_unknown`처럼 서버 스스로도
+ * 결과를 모른다고 알리는 경우)는 안전한 쪽(5)으로 본다(2026-09-26 조율자
+ * 결정 — T6 서버가 "결과 불명"을 502 `publish_unknown`으로 알리기 시작했다). */
+const DEFINITE_4_ERROR_CODES = new Set(['internal', 'unavailable', 'invalid_json', 'payload_too_large', 'unsupported_media_type'])
+
+/**
+ * publish 전용: `decideOutcome`이 4를 냈어도 그 4가 정말 "확실한 실패"인지
+ * 한 번 더 거른다.
+ * - `bad_response`(계약과 다른 응답)인데 상태가 2xx(서버는 성공했다고 믿는
+ *   듯한데 본문이 계약과 다름)나 5xx(게이트웨이가 원본 서버 뒤에서 끊겼을
+ *   수 있음)면 5로 올린다. 원문(5xx는 2KB로 자름)을 함께 돌려준다.
+ * - 계약대로 온 `{ ok: false, error: { code } }`인데 `code`가
+ *   `DEFINITE_4_ERROR_CODES`에 없으면(서버가 결과 불명을 스스로 알리는
+ *   `publish_unknown` 포함, 모르는 새 코드도 포함) 5로 올린다.
+ * - 그 밖의 4(`internal`·`unavailable`·`invalid_json`·`payload_too_large`·
+ *   `unsupported_media_type`, 4xx `bad_response`)는 그대로 4다.
+ */
+export function derivePublishExitCode(outcome: Outcome, response: HttpResponse): { exitCode: ExitCode; raw?: string } {
+  if (outcome.exitCode !== 4) return { exitCode: outcome.exitCode }
+
+  if (isBadResponseOutcome(outcome)) {
+    const ambiguousStatus = (response.status >= 200 && response.status < 300) || response.status >= 500
+    if (!ambiguousStatus) return { exitCode: 4 }
+    const raw = response.status >= 500 ? truncateRaw(response.text, 2000) : response.text
+    return { exitCode: 5, raw }
+  }
+
+  const code = outcomeErrorCode(outcome)
+  if (code !== undefined && !DEFINITE_4_ERROR_CODES.has(code)) {
+    return { exitCode: 5, raw: response.text }
+  }
+
+  return { exitCode: 4 }
+}
+
+export interface ExtractedLinks {
+  slug?: string
+  url?: string
+  ownerUrl?: string
+}
+
+/** 종료 코드 5(결과 불명)로 끝날 때, 원문 응답 안에서 그래도 JSON으로 읽히는
+ * 부분이 있으면 `slug`/`url`/`ownerUrl`을 뽑아 본다 — 발행이 실제로는 성공해서
+ * `ownerUrl`이 본문 어딘가에 들어 있었을 수 있고, 그러면 그 링크를 잃지 않고
+ * "확인 필요"로 기록해 둘 수 있다. 파싱이 안 되면(HTML 오류 페이지 등) 조용히
+ * 빈 값을 돌려준다. */
+export function tryExtractLinks(text: string): ExtractedLinks {
+  try {
+    const parsed: unknown = JSON.parse(text)
+    if (!isRecord(parsed)) return {}
+    return {
+      slug: typeof parsed.slug === 'string' ? parsed.slug : undefined,
+      url: typeof parsed.url === 'string' ? parsed.url : undefined,
+      ownerUrl: typeof parsed.ownerUrl === 'string' ? parsed.ownerUrl : undefined,
+    }
+  } catch {
+    return {}
+  }
 }
 
 /** `--json` 출력에 `retryAfterSeconds`를 덧붙인다(429/503일 때만 값이 있다).

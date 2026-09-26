@@ -14,6 +14,9 @@ import {
   fetchGuide,
   postJson,
   decideOutcome,
+  derivePublishExitCode,
+  classifyPublishNetworkFailure,
+  tryExtractLinks,
   isRecord,
   userAgent,
   withRetryAfterField,
@@ -86,16 +89,24 @@ function retryMessage(seconds: number | undefined): string {
   return seconds !== undefined ? `${seconds}초 후 다시 시도해 주세요` : '잠시 후 다시 시도해 주세요'
 }
 
-const PUBLISH_UNKNOWN_MESSAGE =
-  '발행됐을 수 있어요 — 다시 시도하기 전에 `letsplaytest list`나 웹사이트에서 확인해 주세요'
+const PUBLISH_UNKNOWN_MESSAGE = '발행됐을 수 있어요. 다시 publish하지 말고 사용자에게 확인하세요'
 
-/** publish에서만 쓰는 "발행 결과 불명"(종료 코드 5) 출력. 요청이 서버에 이미
- * 도달했을 가능성이 있는 상황(타임아웃, 본문 중간 끊김, ok:true인데 필수
- * 필드 누락)에서 4(연결 자체가 안 됨 — 확실히 발행 안 됨)와 구분해 에이전트가
- * 무작정 재시도로 중복 발행을 만들지 않게 한다(스펙 §7.4, 2026-09-26 조율자
- * 결정). `raw`는 필드 누락 케이스에만 싣는다 — 깨진 JSON 안에 ownerUrl이
- * 들어 있었을 수도 있어서 사람이 직접 볼 수 있게 한다. */
-function printPublishUnknown(io: Io, args: ParsedArgs, raw?: string): void {
+/**
+ * publish에서만 쓰는 "발행 결과 불명"(종료 코드 5) 출력. 요청이 서버에 이미
+ * 도달했을 가능성이 있는 상황(타임아웃, 연결은 됐는데 본문이 끊김, 애매한
+ * 상태의 응답, ok:true인데 필수 필드 누락)에서 4(확실히 발행 안 됨)와 구분해
+ * 에이전트가 무작정 재시도로 중복 발행을 만들지 않게 한다(스펙 §7.4,
+ * 2026-09-26 조율자 결정).
+ *
+ * `raw`가 있으면 그 안에서 JSON으로 `slug`/`url`/`ownerUrl`을 뽑아 본다 —
+ * 뽑히면 발행이 실제로는 성공했을 가능성이 있다는 뜻이라, 그 링크를
+ * `unconfirmed: true`로 기록해 둔다(사람이 다시 확인할 수 있게). `list`로
+ * 확인하라는 안내는 실제로 뭔가 기록됐을 때만 붙인다.
+ */
+async function handlePublishUnknown(io: Io, args: ParsedArgs, inputData: unknown, raw?: string): Promise<void> {
+  const extracted = raw !== undefined ? tryExtractLinks(raw) : {}
+  const canSave = extracted.slug !== undefined && extracted.url !== undefined && extracted.ownerUrl !== undefined
+
   if (args.json) {
     const body: Record<string, unknown> = {
       ok: false,
@@ -103,10 +114,30 @@ function printPublishUnknown(io: Io, args: ParsedArgs, raw?: string): void {
     }
     if (raw !== undefined) body.raw = raw
     io.stdout(`${JSON.stringify(body)}\n`)
-    return
+  } else {
+    io.stderr(`${PUBLISH_UNKNOWN_MESSAGE}\n`)
+    if (canSave) {
+      io.stderr(`뽑아낸 링크 — url: ${extracted.url}\nownerUrl: ${extracted.ownerUrl}\n`)
+    }
+    if (raw !== undefined) io.stderr(`원본 응답: ${raw}\n`)
   }
-  io.stderr(`${PUBLISH_UNKNOWN_MESSAGE}\n`)
-  if (raw !== undefined) io.stderr(`원본 응답: ${raw}\n`)
+
+  if (canSave && !args.noSave) {
+    const title = isRecord(inputData) && typeof inputData.title === 'string' ? inputData.title : ''
+    const kind = isRecord(inputData) && typeof inputData.kind === 'string' ? inputData.kind : ''
+    const saveResult = await saveRecord(storeIo(io), {
+      slug: extracted.slug as string,
+      title,
+      kind,
+      url: extracted.url as string,
+      ownerUrl: extracted.ownerUrl as string,
+      api: args.api,
+      publishedAt: new Date().toISOString(),
+      unconfirmed: true,
+    })
+    if (saveResult.warning) io.stderr(`${saveResult.warning}\n`)
+    else io.stderr('`letsplaytest list`에 "(확인 필요)"로 남겨 뒀어요\n')
+  }
 }
 
 /** validate(그리고 publish 실패 경로)의 사람용 출력. blocker가 없어도 warning은
@@ -146,7 +177,9 @@ function printJson(outcome: Outcome, io: Io): void {
 async function runGuide(args: ParsedArgs, io: Io, ua: string): Promise<number> {
   const result = await fetchGuide(args.api, { kind: args.kind, lang: args.lang, asJson: args.json }, ua)
   if (!result.ok) {
-    io.stderr(result.timedOut ? '서버가 30초 안에 응답하지 않았어요\n' : `서버에 연결할 수 없어요: ${args.api}\n`)
+    io.stderr(
+      result.failure.kind === 'timeout' ? '서버가 30초 안에 응답하지 않았어요\n' : `서버에 연결할 수 없어요: ${args.api}\n`,
+    )
     return 4
   }
   const outcome = decideOutcome(result.response, 'guide')
@@ -193,7 +226,9 @@ async function runValidate(args: ParsedArgs, io: Io, ua: string): Promise<number
   }
   const result = await postJson(args.api, '/api/v1/tests/validate', data, { lang: args.lang }, ua)
   if (!result.ok) {
-    io.stderr(result.timedOut ? '서버가 30초 안에 응답하지 않았어요\n' : `서버에 연결할 수 없어요: ${args.api}\n`)
+    io.stderr(
+      result.failure.kind === 'timeout' ? '서버가 30초 안에 응답하지 않았어요\n' : `서버에 연결할 수 없어요: ${args.api}\n`,
+    )
     return 4
   }
   const outcome = decideOutcome(result.response, 'contract')
@@ -215,17 +250,17 @@ async function runPublish(args: ParsedArgs, io: Io, ua: string): Promise<number>
   }
   const result = await postJson(args.api, '/api/v1/tests', data, { lang: args.lang }, ua, PUBLISH_TIMEOUT_MS)
   if (!result.ok) {
-    if (result.timedOut || result.bodyInterrupted) {
-      // 요청이 이미 서버에 도달했을 수 있다(특히 POST는 타임아웃 시점에 요청
-      // 바이트가 이미 다 나간 경우가 많다) — "발행 안 됨"이 확실한 4가 아니라
-      // "결과 불명"인 5로 알린다.
-      printPublishUnknown(io, args)
-      return 5
+    // 네트워크 실패는 하나로 뭉뚱그리지 않는다 — ECONNREFUSED류(요청이 정말
+    // 안 나감)만 4, 그 밖(타임아웃, 연결은 됐는데 끊김, ECONNRESET류)은
+    // "서버에 이미 도달했을 수 있다"는 뜻이라 5다(2026-09-26 조율자 결정,
+    // 실제 net/http 서버로 재현해 확정).
+    const code = classifyPublishNetworkFailure(result.failure)
+    if (code === 4) {
+      io.stderr(`서버에 연결할 수 없어요: ${args.api}\n`)
+      return 4
     }
-    // fetch() 자체가 거부됐다(DNS 실패, ECONNREFUSED 등) — 요청이 나가지도
-    // 못했으니 "발행 안 됨"이 확실하다.
-    io.stderr(`서버에 연결할 수 없어요: ${args.api}\n`)
-    return 4
+    await handlePublishUnknown(io, args, data)
+    return 5
   }
   const outcome = decideOutcome(result.response, 'contract')
 
@@ -239,8 +274,8 @@ async function runPublish(args: ParsedArgs, io: Io, ua: string): Promise<number>
     if (!hasRequiredFields) {
       // ok: true인데 계약이 요구하는 필드가 없다 — 저장은 됐을 수도 있다
       // (ownerUrl이 깨진 본문 안에 들어 있을 수 있다). "발행 안 됨"인 4가
-      // 아니라 "결과 불명"인 5로 알리고, 사람이 직접 볼 수 있게 원문을 싣는다.
-      printPublishUnknown(io, args, result.response.text)
+      // 아니라 "결과 불명"인 5로 알리고, 뽑을 수 있으면 링크를 기록해 둔다.
+      await handlePublishUnknown(io, args, data, result.response.text)
       return 5
     }
 
@@ -273,6 +308,14 @@ async function runPublish(args: ParsedArgs, io: Io, ua: string): Promise<number>
     return 0
   }
 
+  // bad_response(계약과 다른 응답)이면서 상태가 2xx/5xx면 "확실히 실패"가
+  // 아니라 5다 — decideOutcome은 이 맥락을 모르므로 여기서 한 번 더 거른다.
+  const derived = derivePublishExitCode(outcome, result.response)
+  if (derived.exitCode === 5) {
+    await handlePublishUnknown(io, args, data, derived.raw)
+    return 5
+  }
+
   if (args.json) printJson(outcome, io)
   else printOutcomeHuman(outcome, io)
   return outcome.exitCode
@@ -291,7 +334,8 @@ async function runList(args: ParsedArgs, io: Io): Promise<number> {
     return 0
   }
   for (const record of sorted) {
-    io.stdout(`${record.publishedAt}  ${record.kind}  ${record.title}  ${record.url}\n`)
+    const mark = record.unconfirmed ? '  (확인 필요)' : ''
+    io.stdout(`${record.publishedAt}  ${record.kind}  ${record.title}  ${record.url}${mark}\n`)
   }
   return 0
 }

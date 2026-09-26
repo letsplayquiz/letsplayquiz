@@ -54,18 +54,33 @@ JSON이 아니거나 `ok` 필드가 없으면(프록시 오류 페이지 등) �
 무시한 경우 등) 4로 처리합니다.
 
 `validate`·`guide`는 30초 안에 응답이 없으면 4입니다(연결은 됐지만 느린 경우 포함).
-**`publish`만 다릅니다:** 타임아웃이 60초로 더 길고, 타임아웃되거나 연결은 됐는데
-본문이 중간에 끊기거나 `ok: true`인데 `slug`/`url`/`ownerUrl`이 빠져 있으면 — 이미
-서버에 요청이 도달해 저장까지 끝났을 가능성이 있으므로 — "발행 안 됨"이 확실한 4가
-아니라 **5**(결과 불명)를 냅니다. DNS 실패나 접속 거부처럼 요청이 아예 나가지도
-못한 경우에만 여전히 4입니다. 5를 받으면 같은 내용으로 곧장 다시 `publish`하지 말고,
-`letsplaytest list`로 방금 발행됐는지 먼저 확인하세요(중복 발행을 피하기 위함입니다).
+**`publish`만 다릅니다:** 타임아웃이 60초로 더 길고, "확실히 발행 안 됨"(4)과 "발행됐을
+수 있음"(5, 결과 불명)을 실제 저수준 오류로 가릅니다.
+
+| 상황 | 종료 코드 |
+|---|---|
+| DNS 실패, 접속 거부(`ECONNREFUSED`), TLS 인증서 오류처럼 요청이 정말 나가지 못함 | 4 |
+| 60초 타임아웃(연결 이후 어느 시점이든) | 5 |
+| 연결은 됐는데 응답 중간에 끊김(`ECONNRESET` 등) | 5 |
+| `ok: true`인데 `slug`/`url`/`ownerUrl`이 없음 | 5 |
+| 서버가 JSON도, 계약된 모양도 아닌 응답을 주는데 상태가 2xx 또는 5xx | 5 |
+| 서버가 스스로 "결과 불명"이라고 알림(`error.code: "publish_unknown"`) | 5 |
+| 서버가 아는 오류(`internal`·`unavailable`·`invalid_json`·`payload_too_large`·`unsupported_media_type`)를 계약대로 알림 | 4 |
+| 서버가 모르는 새 오류 코드를 계약대로 알림 | 5(안전한 쪽으로) |
+
+5를 받으면 같은 내용으로 곧장 다시 `publish`하지 말고, 사용자에게 확인을 구하세요.
+원문 응답 안에서 `slug`/`url`/`ownerUrl`을 뽑을 수 있으면(발행이 실제로는 성공해서
+`ownerUrl`이 들어 있었을 수 있는 경우) 그 링크를 `unconfirmed: true`로 기록해 두고,
+`letsplaytest list`에 "(확인 필요)"로 표시합니다.
 
 ## 대시보드 링크는 어디에 저장되나
 
-`publish`가 성공하면 `~/.config/letsplaytest/tests.json`(`XDG_CONFIG_HOME`이 있으면 그 아래)에
-`slug`, `title`, `kind`, `url`, `ownerUrl`, `api`, `publishedAt`을 기록합니다. 이 파일과
-디렉터리는 각각 권한 `600`/`700`으로 만들어 같은 컴퓨터의 다른 사용자가 읽지 못하게 합니다.
+`publish`가 성공하면 `~/.config/letsplaytest/tests.jsonl`(`XDG_CONFIG_HOME`이 있으면 그
+아래)에 한 줄짜리 JSON(JSONL)으로 이어 붙입니다: `slug`, `title`, `kind`, `url`,
+`ownerUrl`, `api`, `publishedAt`(그리고 결과 불명일 때만 `unconfirmed: true`). 이 파일과
+디렉터리는 각각 권한 `600`/`700`으로 만들어 같은 컴퓨터의 다른 사용자가 읽지 못하게
+합니다. 락 파일 없이 매번 파일 끝에 한 줄을 덧붙이기만 해서, 동시에 여러 번 발행해도
+기록이 서로 덮어써지지 않습니다.
 
 `ownerUrl`(대시보드 링크)은 로그인 없는 PlayTest에서 창작자임을 증명하는 **유일한 수단**이라
 다시 발급받을 수 없습니다. `publish`는 성공 시 이 링크를 화면에도 출력합니다 — 만든 사람과
