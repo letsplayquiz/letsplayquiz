@@ -1,8 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import { parseArgs, DEFAULT_API } from './args.js'
+import { parseArgs, DEFAULT_API, HELP_TEXT } from './args.js'
 
 const env = (overrides: Record<string, string | undefined> = {}): NodeJS.ProcessEnv =>
   ({ ...overrides }) as NodeJS.ProcessEnv
+
+describe('HELP_TEXT', () => {
+  it('기록 파일을 실제 이름(tests.jsonl)으로 안내한다', () => {
+    expect(HELP_TEXT).toContain('tests.jsonl')
+    expect(HELP_TEXT).not.toMatch(/tests\.json(?!l)/)
+  })
+})
 
 describe('parseArgs', () => {
   it('명령이 없으면 도움말(2)을 낸다', () => {

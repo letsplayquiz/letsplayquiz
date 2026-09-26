@@ -6,6 +6,6 @@
   "bin": { "letsplaytest": "dist/bin.js" },
   "files": ["dist", "README.md"],
   "engines": { "node": ">=20" },
-  "scripts": { "build": "tsc -p tsconfig.json" },
+  "scripts": { "build": "tsc -p tsconfig.json", "prepublishOnly": "tsc -p tsconfig.json" },
   "license": "MIT"
 }

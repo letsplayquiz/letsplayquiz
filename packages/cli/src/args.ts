@@ -45,7 +45,7 @@ export const HELP_TEXT = `letsplaytest — AI 에이전트로 PlayTest 테스트
   --lang ko|ja|en 서버 메시지 언어(쿼리 lang)
   --api <url>     서버 주소. https만 허용(로컬 개발은 http://localhost, http://127.0.0.1 예외).
                   기본값: ${DEFAULT_API}, 환경변수 LETSPLAYTEST_API로도 설정 가능
-  --no-save       publish 결과를 ~/.config/letsplaytest/tests.json에 남기지 않음
+  --no-save       publish 결과를 ~/.config/letsplaytest/tests.jsonl(XDG_CONFIG_HOME이 있으면 그 아래)에 남기지 않음
   --help          도움말 출력
   --version       버전 출력
 `

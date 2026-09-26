@@ -12,7 +12,7 @@ npx letsplaytest guide --kind balance
 이 명령이 종류별 규칙과 완성된 예시 JSON을 출력합니다. AI 에이전트에게는 이렇게 시킵니다:
 
 > `npx letsplaytest guide --kind balance`를 읽고 "짜장 vs 짬뽕" 테스트를 만들어서
-> `npx letsplaytest validate`를 통과시킨 뒤 `npx letsplaytest publish`로 올려 줘.
+> `npx letsplaytest validate test.json`을 통과시킨 뒤 `npx letsplaytest publish test.json`으로 올려 줘.
 
 ## 명령
 
