@@ -1,0 +1,11 @@
+{
+  "name": "letsplaytest",
+  "version": "0.1.0",
+  "description": "AI 에이전트로 PlayTest 테스트를 만들고 발행하는 CLI",
+  "type": "module",
+  "bin": { "letsplaytest": "dist/cli.js" },
+  "files": ["dist", "README.md"],
+  "engines": { "node": ">=18" },
+  "scripts": { "build": "tsc -p tsconfig.json" },
+  "license": "MIT"
+}

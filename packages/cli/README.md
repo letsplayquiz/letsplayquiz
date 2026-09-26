@@ -1,0 +1,70 @@
+# letsplaytest
+
+AI 에이전트가 [PlayTest](https://letsplaytest.com) 테스트(점수형·유형형·밸런스·월드컵)를 만들고
+발행하는 CLI입니다. 설치 없이 `npx`로 바로 씁니다.
+
+## 시작하기
+
+```sh
+npx letsplaytest guide --kind balance
+```
+
+이 명령이 종류별 규칙과 완성된 예시 JSON을 출력합니다. AI 에이전트에게는 이렇게 시킵니다:
+
+> `npx letsplaytest guide --kind balance`를 읽고 "짜장 vs 짬뽕" 테스트를 만들어서
+> `npx letsplaytest validate`를 통과시킨 뒤 `npx letsplaytest publish`로 올려 줘.
+
+## 명령
+
+| 명령 | 설명 |
+|---|---|
+| `guide [--kind score\|type\|balance\|worldcup]` | 설명서를 출력한다(생략하면 전부) |
+| `validate <file \| ->` | 저장하지 않고 검사만 한다 |
+| `publish <file \| ->` | 검사를 통과하면 발행한다 |
+| `list` | 이 컴퓨터에서 발행한 테스트를 최근 순으로 보여 준다(서버를 부르지 않는다) |
+
+`file` 자리에 `-`를 주면 표준 입력에서 JSON을 읽습니다(파일 없이 파이프로 넘길 때 씁니다).
+
+## 옵션
+
+| 옵션 | 설명 |
+|---|---|
+| `--json` | 서버 응답(또는 `list`의 기록)을 그대로 출력한다 |
+| `--lang ko\|ja\|en` | 서버 메시지 언어(쿼리 `lang`). 지금은 항상 한국어 메시지가 온다 |
+| `--api <url>` | 서버 주소. 환경변수 `LETSPLAYTEST_API`로도 설정한다(플래그가 우선). 기본값 `https://letsplaytest.com` |
+| `--no-save` | `publish` 결과를 기록 파일에 남기지 않는다 |
+| `--help` | 도움말 출력 |
+| `--version` | 버전 출력 |
+
+## 종료 코드
+
+| 코드 | 의미 | 다음 행동 |
+|---|---|---|
+| 0 | 성공(경고만 있어도) | 다음 단계 |
+| 1 | 검사 실패(`validation_failed`) | 고쳐서 다시 |
+| 2 | 사용법 오류, 파일 없음, 로컬 JSON 파싱 실패 | 명령을 고침 |
+| 3 | 요청 제한(`rate_limited`) | 표시된 시간만큼 기다림 |
+| 4 | 네트워크·서버 오류 | 나중에 다시 |
+
+1과 0은 HTTP 상태가 아니라 응답 본문의 `ok`로 갈립니다 — `validate`는 실패해도 200을 냅니다.
+
+## 대시보드 링크는 어디에 저장되나
+
+`publish`가 성공하면 `~/.config/letsplaytest/tests.json`(`XDG_CONFIG_HOME`이 있으면 그 아래)에
+`slug`, `title`, `kind`, `url`, `ownerUrl`, `api`, `publishedAt`을 기록합니다. 이 파일과
+디렉터리는 각각 권한 `600`/`700`으로 만들어 같은 컴퓨터의 다른 사용자가 읽지 못하게 합니다.
+
+`ownerUrl`(대시보드 링크)은 로그인 없는 PlayTest에서 창작자임을 증명하는 **유일한 수단**이라
+다시 발급받을 수 없습니다. `publish`는 성공 시 이 링크를 화면에도 출력합니다 — 만든 사람과
+그 사람의 AI 에이전트가 바로 받아 써야 하기 때문입니다. **CI 로그나 공유 터미널 세션에
+찍히면 남에게 보일 수 있으니, CI에서 자동 발행할 때는 로그 노출에 주의하세요.**
+
+## 예시
+
+```sh
+npx letsplaytest guide --kind type --json > guide.json
+# ... AI가 guide.json을 읽고 test.json을 작성 ...
+npx letsplaytest validate test.json
+npx letsplaytest publish test.json
+npx letsplaytest list
+```
