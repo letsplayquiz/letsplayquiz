@@ -324,62 +324,6 @@ export function derivePublishExitCode(outcome: Outcome, response: HttpResponse):
   return { exitCode: 4 }
 }
 
-export interface ExtractedLinks {
-  slug: string
-  url: string
-  ownerUrl: string
-}
-
-function isHttpUrl(value: string): URL | undefined {
-  try {
-    const url = new URL(value)
-    return url.protocol === 'http:' || url.protocol === 'https:' ? url : undefined
-  } catch {
-    return undefined
-  }
-}
-
-/**
- * 종료 코드 5(결과 불명)로 끝날 때, 원문 응답 안에서 그래도 링크를 뽑아 낼 수
- * 있는지 본다 — 발행이 실제로는 성공해서 `ownerUrl`이 본문에 들어 있었을 수
- * 있고, 그러면 그 링크를 잃지 않고 "확인 필요"로 기록해 둘 수 있다.
- *
- * 502 오류 본문처럼 아무 JSON이나 뽑아 저장하면 엉뚱한 링크를 창작자 것으로
- * 오인할 수 있어(2026-09-26 네 번째 리뷰 — 조율자 결정: origin 일치까지는
- * 강제하지 않되, 아래 조건은 전부 만족해야 한다), 저장 조건을 좁게 잡는다:
- * - 상태가 2xx일 것(서버가 성공으로 여겼다는 최소한의 신호)
- * - 본문이 JSON이고 `ok === true`일 것(스펙 §4.4 성공 응답의 첫 조건)
- * - `url`·`ownerUrl`이 `new URL()`로 파싱되는 `http`/`https`일 것
- * - `url`의 경로에 `slug` 문자열이 실제로 들어 있을 것(서로 무관한 두 값이
- *   우연히 같이 온 게 아니라는 최소한의 일관성 확인)
- *
- * 하나라도 어긋나면(HTML 오류 페이지, `ok: false`, 4xx/5xx, 이상한 URL 등)
- * 조용히 `undefined`를 돌려준다 — 저장을 건너뛴다는 뜻이다.
- */
-export function tryExtractLinks(text: string, status: number): ExtractedLinks | undefined {
-  if (status < 200 || status >= 300) return undefined
-
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(text)
-  } catch {
-    return undefined
-  }
-  if (!isRecord(parsed) || parsed.ok !== true) return undefined
-
-  const slug = typeof parsed.slug === 'string' ? parsed.slug : undefined
-  const url = typeof parsed.url === 'string' ? parsed.url : undefined
-  const ownerUrl = typeof parsed.ownerUrl === 'string' ? parsed.ownerUrl : undefined
-  if (slug === undefined || url === undefined || ownerUrl === undefined) return undefined
-
-  const urlObj = isHttpUrl(url)
-  const ownerUrlObj = isHttpUrl(ownerUrl)
-  if (!urlObj || !ownerUrlObj) return undefined
-  if (!urlObj.pathname.includes(slug)) return undefined
-
-  return { slug, url, ownerUrl }
-}
-
 /** `--json` 출력에 `retryAfterSeconds`를 덧붙인다(429/503일 때만 값이 있다).
  * 서버가 이미 그 필드를 실었으면 덮어쓰지 않는다. */
 export function withRetryAfterField(json: unknown, retryAfterSeconds: number | undefined): unknown {

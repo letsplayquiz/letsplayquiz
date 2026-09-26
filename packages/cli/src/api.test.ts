@@ -8,7 +8,6 @@ import {
   derivePublishExitCode,
   classifyPublishNetworkFailure,
   isDefiniteConnectFailure,
-  tryExtractLinks,
   truncateRaw,
   userAgent,
   withRetryAfterField,
@@ -305,79 +304,6 @@ describe('isDefiniteConnectFailure / classifyPublishNetworkFailure', () => {
   it("cause.message가 'bad port'면 코드 없이도 확실한 실패다", () => {
     expect(isDefiniteConnectFailure(undefined, 'bad port')).toBe(true)
     expect(classifyPublishNetworkFailure({ kind: 'connect-failed', code: undefined, message: 'bad port' })).toBe(4)
-  })
-})
-
-describe('tryExtractLinks', () => {
-  const goodBody = () =>
-    JSON.stringify({
-      ok: true,
-      slug: 'ab12cd34',
-      url: 'https://letsplaytest.com/t/ab12cd34',
-      ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
-    })
-
-  it('2xx + ok:true + 유효한 http(s) URL + url 경로에 slug 포함 → 뽑는다', () => {
-    expect(tryExtractLinks(goodBody(), 200)).toEqual({
-      slug: 'ab12cd34',
-      url: 'https://letsplaytest.com/t/ab12cd34',
-      ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
-    })
-    expect(tryExtractLinks(goodBody(), 201)).toBeDefined()
-    expect(tryExtractLinks(goodBody(), 299)).toBeDefined()
-  })
-
-  it('상태가 2xx가 아니면(502 오류 본문 등) 안 뽑는다', () => {
-    expect(tryExtractLinks(goodBody(), 502)).toBeUndefined()
-    expect(tryExtractLinks(goodBody(), 400)).toBeUndefined()
-    expect(tryExtractLinks(goodBody(), 199)).toBeUndefined()
-  })
-
-  it('ok가 true가 아니면 안 뽑는다', () => {
-    const body = JSON.stringify({
-      ok: false,
-      slug: 'ab12cd34',
-      url: 'https://letsplaytest.com/t/ab12cd34',
-      ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
-    })
-    expect(tryExtractLinks(body, 200)).toBeUndefined()
-  })
-
-  it('필드가 하나라도 없으면 안 뽑는다', () => {
-    expect(tryExtractLinks(JSON.stringify({ ok: true, url: 'https://x.example/t/a' }), 200)).toBeUndefined()
-  })
-
-  it('url/ownerUrl이 http(s)가 아니면(javascript: 등) 안 뽑는다', () => {
-    const body = JSON.stringify({
-      ok: true,
-      slug: 'a',
-      url: 'javascript:alert(1)',
-      ownerUrl: 'https://letsplaytest.com/t/a/owner/tok',
-    })
-    expect(tryExtractLinks(body, 200)).toBeUndefined()
-  })
-
-  it('url/ownerUrl이 파싱 안 되는 문자열이면 안 뽑는다', () => {
-    const body = JSON.stringify({ ok: true, slug: 'a', url: 'not a url', ownerUrl: 'also not a url' })
-    expect(tryExtractLinks(body, 200)).toBeUndefined()
-  })
-
-  it('url 경로에 slug가 없으면 안 뽑는다(서로 무관한 값일 수 있다)', () => {
-    const body = JSON.stringify({
-      ok: true,
-      slug: 'ab12cd34',
-      url: 'https://letsplaytest.com/t/completely-different-slug',
-      ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
-    })
-    expect(tryExtractLinks(body, 200)).toBeUndefined()
-  })
-
-  it('JSON이 아니면 빈 값', () => {
-    expect(tryExtractLinks('<html>bad</html>', 200)).toBeUndefined()
-  })
-
-  it('JSON 배열이면 빈 값', () => {
-    expect(tryExtractLinks('[1,2,3]', 200)).toBeUndefined()
   })
 })
 

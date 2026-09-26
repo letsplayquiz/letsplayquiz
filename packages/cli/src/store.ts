@@ -32,9 +32,6 @@ export interface TestRecord {
   ownerUrl: string
   api: string
   publishedAt: string
-  /** publish가 종료 코드 5(결과 불명)를 냈지만 원문에서 slug/ownerUrl을 뽑아낼
-   * 수 있었을 때만 true. 실제로 발행됐는지 사람이 다시 확인해야 한다는 표시다. */
-  unconfirmed?: boolean
 }
 
 export interface StoreIo {
@@ -63,6 +60,9 @@ function isRecordLike(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null
 }
 
+// 알 수 없는 추가 필드(예전 버전이 남긴 `unconfirmed` 등)는 일부러 검사하지
+// 않는다 — 여기 적힌 필드들만 맞으면 통과시켜서, 스키마가 조금 바뀌어도
+// 예전 기록이 "깨진 줄"로 취급되지 않게 한다.
 function isValidRecord(v: unknown): v is TestRecord {
   return (
     isRecordLike(v) &&
@@ -72,8 +72,7 @@ function isValidRecord(v: unknown): v is TestRecord {
     typeof v.url === 'string' &&
     typeof v.ownerUrl === 'string' &&
     typeof v.api === 'string' &&
-    typeof v.publishedAt === 'string' &&
-    (v.unconfirmed === undefined || typeof v.unconfirmed === 'boolean')
+    typeof v.publishedAt === 'string'
   )
 }
 

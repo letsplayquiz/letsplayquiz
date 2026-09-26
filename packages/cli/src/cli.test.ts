@@ -286,12 +286,16 @@ describe('list 명령', () => {
     expect(io.stdoutText()).toContain('짜장 vs 짬뽕')
   })
 
-  it('unconfirmed 레코드는 "(확인 필요)"로 표시된다', async () => {
+  it('예전 버전이 남긴 알 수 없는 필드(unconfirmed 등)가 있어도 깨진 줄로 취급하지 않고 보여 준다', async () => {
+    // "확인 필요" 자동 기록 기능은 2026-09-26 다섯 번째 리뷰에서 걷어냈지만
+    // (죽은 코드였다), 그 기능이 살아 있던 버전이 남긴 tests.jsonl은 여전히
+    // 디스크에 있을 수 있다 — list가 그런 줄을 무시하고 나머지 필드로
+    // 정상 표시해야 한다(경고나 "(확인 필요)" 표시는 더 이상 없다).
     const configDir = path.join(tmpHome, '.config', 'letsplaytest')
     await fs.mkdir(configDir, { recursive: true })
-    const unconfirmedRecord = {
+    const legacyRecord = {
       slug: 'ab12cd34',
-      title: '확인이 필요한 테스트',
+      title: '예전 버전 기록',
       kind: 'balance',
       url: 'https://letsplaytest.com/t/ab12cd34',
       ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
@@ -299,35 +303,14 @@ describe('list 명령', () => {
       publishedAt: '2026-09-26T00:00:00.000Z',
       unconfirmed: true,
     }
-    await fs.writeFile(path.join(configDir, 'tests.jsonl'), `\n${JSON.stringify(unconfirmedRecord)}\n`)
+    await fs.writeFile(path.join(configDir, 'tests.jsonl'), `${JSON.stringify(legacyRecord)}\n`)
 
     const io = makeIo()
     const code = await run(['list'], io)
     expect(code).toBe(0)
-    expect(io.stdoutText()).toContain('확인이 필요한 테스트')
-    expect(io.stdoutText()).toContain('(확인 필요)')
-  })
-
-  it('--json에는 unconfirmed 필드가 그대로 실린다(마크 문자열이 아니라)', async () => {
-    const configDir = path.join(tmpHome, '.config', 'letsplaytest')
-    await fs.mkdir(configDir, { recursive: true })
-    const unconfirmedRecord = {
-      slug: 'ab12cd34',
-      title: '확인이 필요한 테스트',
-      kind: 'balance',
-      url: 'https://letsplaytest.com/t/ab12cd34',
-      ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
-      api: 'https://letsplaytest.com',
-      publishedAt: '2026-09-26T00:00:00.000Z',
-      unconfirmed: true,
-    }
-    await fs.writeFile(path.join(configDir, 'tests.jsonl'), `${JSON.stringify(unconfirmedRecord)}\n`)
-
-    const io = makeIo()
-    const code = await run(['list', '--json'], io)
-    expect(code).toBe(0)
-    const parsed = JSON.parse(io.stdoutText())
-    expect(parsed[0]).toMatchObject({ unconfirmed: true })
+    expect(io.stderrText()).toBe('')
+    expect(io.stdoutText()).toContain('예전 버전 기록')
+    expect(io.stdoutText()).not.toContain('확인 필요')
   })
 })
 
@@ -585,11 +568,12 @@ describe('publish 결과 불명(exit 5)', () => {
     expect(parsed.raw).toContain('"ok":true')
   })
 
-  it('필드가 일부만 있으면(ownerUrl 없음) 뽑지 못해 저장하지 않는다', async () => {
+  it('ok:true인데 ownerUrl이 없으면(계약 위반) 5, 기록은 남기지 않는다', async () => {
     const file = path.join(tmpDir, 'test.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance', title: '짜장 vs 짬뽕' }))
-    // ok: true인데 ownerUrl이 없다 — hasRequiredFields가 실패해 5(결과 불명)
-    // 경로로 들어가지만, tryExtractLinks도 세 필드가 다 있어야 하므로 못 뽑는다.
+    // ok: true인데 ownerUrl이 없다 — hasRequiredFields가 실패해 5(결과 불명)로
+    // 끝난다. "확인 필요" 자동 기록 기능은 걷어냈으므로(2026-09-26 다섯 번째
+    // 리뷰) 5는 항상 기록을 남기지 않는다.
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse(201, { ok: true, slug: 'ab12cd34', url: 'https://letsplaytest.com/t/ab12cd34' })),
@@ -600,11 +584,7 @@ describe('publish 결과 불명(exit 5)', () => {
     expect(await storeFileExists()).toBe(false)
   })
 
-  it('ok 필드가 없는(계약 위반) 502류 응답은 링크가 들어 있어도 저장하지 않는다', async () => {
-    // `ok: true`가 아니면(여기서는 필드 자체가 없다) tryExtractLinks가 절대
-    // 뽑지 않는다(2026-09-26 네 번째 리뷰 — 조율자 결정: 오류 응답 안의 링크를
-    // 창작자 것으로 오인해 저장하지 않도록 조건을 좁혔다). 상태는 200이라
-    // derivePublishExitCode가 bad_response를 5로 올리지만, 저장까지는 안 된다.
+  it('ok 필드가 없는(계약 위반) 502류 응답은 링크가 본문에 있어도 기록을 남기지 않는다', async () => {
     const file = path.join(tmpDir, 'test.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance', title: '짜장 vs 짬뽕' }))
     const raw = JSON.stringify({

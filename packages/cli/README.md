@@ -45,7 +45,7 @@ npx letsplaytest guide --kind balance
 | 2 | 사용법 오류, 파일 없음, 로컬 JSON 파싱 실패 | 명령을 고침 |
 | 3 | 요청 제한(`rate_limited`) | 표시된 시간만큼 기다림 |
 | 4 | 네트워크·서버 오류(발행 안 됨이 확실함) | 나중에 다시 |
-| 5 | `publish` 결과 불명 — 발행됐을 수도, 안 됐을 수도 있음 | 곧장 재시도하지 말고 `letsplaytest list`나 웹사이트에서 먼저 확인 |
+| 5 | `publish` 결과 불명 — 발행됐을 수도, 안 됐을 수도 있음 | 곧장 재시도하지 말고 사용자에게 확인 |
 
 1과 0은 HTTP 상태가 아니라 응답 본문의 `ok`로 갈립니다 — `validate`는 실패해도 200을 냅니다.
 `validate`·`publish`는 서버가 항상 `{ ok: boolean, ... }`을 낸다고 계약돼 있어서, 응답이
@@ -69,17 +69,15 @@ JSON이 아니거나 `ok` 필드가 없으면(프록시 오류 페이지 등) �
 | 서버가 5xx로 "결과 불명"이라고 스스로 알림(`error.code: "publish_unknown"`)이거나 모르는 새 오류 코드 | 5(안전한 쪽으로) |
 
 5를 받으면 같은 내용으로 곧장 다시 `publish`하지 말고, 사용자에게 확인을 구하세요.
-응답이 2xx이고 본문이 JSON이며 `ok: true`이고, `url`·`ownerUrl`이 실제로 파싱되는
-http(s) 링크이며 `url`의 경로에 `slug`가 들어 있을 때만(예: 502 오류 본문에 우연히
-비슷한 값이 있어도 저장하지 않도록) `slug`/`url`/`ownerUrl`을 뽑을 수 있으면(발행이 실제로는 성공해서
-`ownerUrl`이 들어 있었을 수 있는 경우) 그 링크를 `unconfirmed: true`로 기록해 두고,
-`letsplaytest list`에 "(확인 필요)"로 표시합니다.
+`--json`이면 `{"ok":false,"error":{"code":"publish_unknown","message":"..."}}`에
+서버 원문 응답이 있으면 `raw` 필드로 같이 실어서, 사람이 그 안에서 직접 링크를
+찾아볼 수 있게 합니다.
 
 ## 대시보드 링크는 어디에 저장되나
 
 `publish`가 성공하면 `~/.config/letsplaytest/tests.jsonl`(`XDG_CONFIG_HOME`이 있으면 그
 아래)에 한 줄짜리 JSON(JSONL)으로 이어 붙입니다: `slug`, `title`, `kind`, `url`,
-`ownerUrl`, `api`, `publishedAt`(그리고 결과 불명일 때만 `unconfirmed: true`). 이 파일과
+`ownerUrl`, `api`, `publishedAt`. 이 파일과
 디렉터리는 각각 권한 `600`/`700`으로 만들어 같은 컴퓨터의 다른 사용자가 읽지 못하게
 합니다. 락 파일 없이 매번 파일 끝에 한 줄을 덧붙이기만 해서, 동시에 여러 번 발행해도
 기록이 서로 덮어써지지 않습니다(일반 파일에 대한 `O_APPEND` 원자성은 로컬

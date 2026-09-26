@@ -16,7 +16,6 @@ import {
   decideOutcome,
   derivePublishExitCode,
   classifyPublishNetworkFailure,
-  tryExtractLinks,
   isRecord,
   userAgent,
   withRetryAfterField,
@@ -96,25 +95,12 @@ const PUBLISH_UNKNOWN_MESSAGE = '발행됐을 수 있어요. 다시 publish하�
  * 도달했을 가능성이 있는 상황(타임아웃, 연결은 됐는데 본문이 끊김, 애매한
  * 상태의 응답, ok:true인데 필수 필드 누락)에서 4(확실히 발행 안 됨)와 구분해
  * 에이전트가 무작정 재시도로 중복 발행을 만들지 않게 한다(스펙 §7.4,
- * 2026-09-26 조율자 결정).
- *
- * `raw`와 `status`가 둘 다 있으면 `tryExtractLinks`로 `slug`/`url`/`ownerUrl`을
- * 뽑아 본다(조건은 `tryExtractLinks` 문서 참고 — 2xx + `ok:true` + 유효한
- * http(s) URL + `url` 경로에 `slug` 포함). 뽑히면 발행이 실제로는 성공했을
- * 가능성이 있다는 뜻이라, 그 링크를 `unconfirmed: true`로 기록해 둔다(사람이
- * 다시 확인할 수 있게). `list`로 확인하라는 안내는 실제로 뭔가 기록됐을
- * 때만 붙인다. 네트워크 실패(타임아웃 등)처럼 응답 자체가 없을 땐 `raw`·
- * `status`를 안 넘긴다 — 뽑을 게 없다.
+ * 2026-09-26 조율자 결정). `raw`(받은 원문)가 있으면 같이 보여 줘서 사람이
+ * 직접 안에서 링크를 찾을 수 있게 한다 — 자동으로 뽑아 기록하는 기능은
+ * 2026-09-26 다섯 번째 리뷰에서 걷어냈다(4회차의 조건 강화 이후 어떤 호출
+ * 경로에서도 실제로 뽑히는 경우가 없는 죽은 코드였다).
  */
-async function handlePublishUnknown(
-  io: Io,
-  args: ParsedArgs,
-  inputData: unknown,
-  raw?: string,
-  status?: number,
-): Promise<void> {
-  const extracted = raw !== undefined && status !== undefined ? tryExtractLinks(raw, status) : undefined
-
+function printPublishUnknown(io: Io, args: ParsedArgs, raw?: string): void {
   if (args.json) {
     const body: Record<string, unknown> = {
       ok: false,
@@ -122,30 +108,10 @@ async function handlePublishUnknown(
     }
     if (raw !== undefined) body.raw = raw
     io.stdout(`${JSON.stringify(body)}\n`)
-  } else {
-    io.stderr(`${PUBLISH_UNKNOWN_MESSAGE}\n`)
-    if (extracted) {
-      io.stderr(`뽑아낸 링크 — url: ${extracted.url}\nownerUrl: ${extracted.ownerUrl}\n`)
-    }
-    if (raw !== undefined) io.stderr(`원본 응답: ${raw}\n`)
+    return
   }
-
-  if (extracted && !args.noSave) {
-    const title = isRecord(inputData) && typeof inputData.title === 'string' ? inputData.title : ''
-    const kind = isRecord(inputData) && typeof inputData.kind === 'string' ? inputData.kind : ''
-    const saveResult = await saveRecord(storeIo(io), {
-      slug: extracted.slug,
-      title,
-      kind,
-      url: extracted.url,
-      ownerUrl: extracted.ownerUrl,
-      api: args.api,
-      publishedAt: new Date().toISOString(),
-      unconfirmed: true,
-    })
-    if (saveResult.warning) io.stderr(`${saveResult.warning}\n`)
-    else io.stderr('`letsplaytest list`에 "(확인 필요)"로 남겨 뒀어요\n')
-  }
+  io.stderr(`${PUBLISH_UNKNOWN_MESSAGE}\n`)
+  if (raw !== undefined) io.stderr(`원본 응답: ${raw}\n`)
 }
 
 /** validate(그리고 publish 실패 경로)의 사람용 출력. blocker가 없어도 warning은
@@ -267,7 +233,7 @@ async function runPublish(args: ParsedArgs, io: Io, ua: string): Promise<number>
       io.stderr(`서버에 연결할 수 없어요: ${args.api}\n`)
       return 4
     }
-    await handlePublishUnknown(io, args, data)
+    printPublishUnknown(io, args)
     return 5
   }
   const outcome = decideOutcome(result.response, 'contract')
@@ -282,8 +248,8 @@ async function runPublish(args: ParsedArgs, io: Io, ua: string): Promise<number>
     if (!hasRequiredFields) {
       // ok: true인데 계약이 요구하는 필드가 없다 — 저장은 됐을 수도 있다
       // (ownerUrl이 깨진 본문 안에 들어 있을 수 있다). "발행 안 됨"인 4가
-      // 아니라 "결과 불명"인 5로 알리고, 뽑을 수 있으면 링크를 기록해 둔다.
-      await handlePublishUnknown(io, args, data, result.response.text, result.response.status)
+      // 아니라 "결과 불명"인 5로 알린다.
+      printPublishUnknown(io, args, result.response.text)
       return 5
     }
 
@@ -320,7 +286,7 @@ async function runPublish(args: ParsedArgs, io: Io, ua: string): Promise<number>
   // 아니라 5다 — decideOutcome은 이 맥락을 모르므로 여기서 한 번 더 거른다.
   const derived = derivePublishExitCode(outcome, result.response)
   if (derived.exitCode === 5) {
-    await handlePublishUnknown(io, args, data, derived.raw, result.response.status)
+    printPublishUnknown(io, args, derived.raw)
     return 5
   }
 
@@ -342,8 +308,7 @@ async function runList(args: ParsedArgs, io: Io): Promise<number> {
     return 0
   }
   for (const record of sorted) {
-    const mark = record.unconfirmed ? '  (확인 필요)' : ''
-    io.stdout(`${record.publishedAt}  ${record.kind}  ${record.title}  ${record.url}${mark}\n`)
+    io.stdout(`${record.publishedAt}  ${record.kind}  ${record.title}  ${record.url}\n`)
   }
   return 0
 }

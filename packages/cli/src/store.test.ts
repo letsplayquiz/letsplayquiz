@@ -252,12 +252,13 @@ describe('loadRecords', () => {
     expect(result.warning).toBeUndefined()
   })
 
-  it('unconfirmed 필드를 담은 레코드도 유효하다', async () => {
+  it('알 수 없는 추가 필드(예전 unconfirmed 등)가 있어도 깨진 줄로 취급하지 않는다', async () => {
     const dir = resolveConfigDir(io())
     await fs.mkdir(dir, { recursive: true })
     const rec = { ...record, unconfirmed: true }
     await fs.writeFile(resolveStoreFile(io()), `${JSON.stringify(rec)}\n`)
     const result = await loadRecords(io())
+    expect(result.warning).toBeUndefined()
     expect(result.records).toEqual([rec])
   })
 
