@@ -19,13 +19,17 @@ afterEach(async () => {
   await fs.rm(tmpDir, { recursive: true, force: true })
 })
 
-function makeIo(stdin = ''): Io & { stdoutText: () => string; stderrText: () => string } {
+function makeIo(
+  stdin = '',
+  opts: { isStdinTTY?: boolean } = {},
+): Io & { stdoutText: () => string; stderrText: () => string } {
   const out: string[] = []
   const err: string[] = []
   return {
     stdout: (s) => out.push(s),
     stderr: (s) => err.push(s),
     readStdin: async () => stdin,
+    isStdinTTY: () => opts.isStdinTTY ?? false,
     env: {} as NodeJS.ProcessEnv,
     homedir: () => tmpHome,
     stdoutText: () => out.join(''),
@@ -261,5 +265,240 @@ describe('공통', () => {
     const code = await run(['--version'], io)
     expect(code).toBe(0)
     expect(io.stdoutText().trim()).toMatch(/^\d+\.\d+\.\d+$/)
+  })
+
+  it('위치 인자가 명령+파일을 넘으면 2', async () => {
+    const io = makeIo()
+    const code = await run(['validate', 'a.json', 'b.json'], io)
+    expect(code).toBe(2)
+  })
+
+  it('--api가 http이면서 로컬이 아니면 2', async () => {
+    const io = makeIo()
+    const code = await run(['list', '--api', 'http://example.com'], io)
+    expect(code).toBe(2)
+    expect(io.stderrText()).toContain('https')
+  })
+
+  it('--api가 http://localhost면 허용한다', async () => {
+    const io = makeIo()
+    const code = await run(['list', '--api', 'http://localhost:3000'], io)
+    expect(code).toBe(0)
+  })
+
+  it('--api가 올바른 URL이 아니면 2', async () => {
+    const io = makeIo()
+    const code = await run(['list', '--api', 'not a url'], io)
+    expect(code).toBe(2)
+  })
+})
+
+describe('- 표준 입력', () => {
+  it('stdin이 TTY면 2를 내고 fetch를 부르지 않는다', async () => {
+    const io = makeIo('', { isStdinTTY: true })
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    const code = await run(['validate', '-'], io)
+    expect(code).toBe(2)
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('BOM 처리', () => {
+  it('파일 앞에 UTF-8 BOM이 있어도 JSON으로 읽는다', async () => {
+    const file = path.join(tmpDir, 'bom.json')
+    await fs.writeFile(file, `﻿${JSON.stringify({ kind: 'balance' })}`)
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(200, { ok: true, blockers: [], warnings: [] })))
+    const io = makeIo()
+    const code = await run(['validate', file], io)
+    expect(code).toBe(0)
+  })
+})
+
+describe('타임아웃', () => {
+  it('30초 안에 응답이 없으면 4 + 안내 문구', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          (_url: unknown, init?: RequestInit) =>
+            new Promise((_resolve, reject) => {
+              init?.signal?.addEventListener('abort', () =>
+                reject(new DOMException('The operation was aborted', 'AbortError')),
+              )
+            }),
+        ),
+      )
+      const io = makeIo()
+      const promise = run(['guide'], io)
+      await vi.advanceTimersByTimeAsync(30_000)
+      const code = await promise
+      expect(code).toBe(4)
+      expect(io.stderrText()).toContain('30초')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('계약과 다른 응답(비정상 2xx)', () => {
+  it('validate가 200인데 JSON이 아니면 4', async () => {
+    const file = path.join(tmpDir, 'test.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('<html>ok?</html>', { status: 200 })))
+    const io = makeIo()
+    const code = await run(['validate', file], io)
+    expect(code).toBe(4)
+  })
+
+  it('validate가 200인데 ok 필드가 없으면 4', async () => {
+    const file = path.join(tmpDir, 'test.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(200, { hello: 'world' })))
+    const io = makeIo()
+    const code = await run(['validate', file], io)
+    expect(code).toBe(4)
+  })
+
+  it('--json이면 bad_response 코드를 담은 합성 JSON을 낸다', async () => {
+    const file = path.join(tmpDir, 'test.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 200 })))
+    const io = makeIo()
+    const code = await run(['validate', file, '--json'], io)
+    expect(code).toBe(4)
+    const parsed = JSON.parse(io.stdoutText())
+    expect(parsed.error.code).toBe('bad_response')
+  })
+
+  it('publish가 ok:true인데 url/ownerUrl/slug가 없으면 4, 원문을 stderr에 낸다', async () => {
+    const file = path.join(tmpDir, 'test.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(201, { ok: true })))
+    const io = makeIo()
+    const code = await run(['publish', file], io)
+    expect(code).toBe(4)
+    expect(io.stderrText()).toContain('ok')
+  })
+})
+
+describe('429/503과 --json', () => {
+  it('429 --json 출력에 retryAfterSeconds를 덧붙인다', async () => {
+    const file = path.join(tmpDir, 'test.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    const body = { ok: false, error: { code: 'rate_limited', message: 'm' } }
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(429, body, { 'retry-after': '77' })))
+    const io = makeIo()
+    const code = await run(['validate', file, '--json'], io)
+    expect(code).toBe(3)
+    expect(JSON.parse(io.stdoutText())).toMatchObject({ retryAfterSeconds: 77 })
+  })
+
+  it('Retry-After가 없으면 잠시 후 문구로 대체한다', async () => {
+    const file = path.join(tmpDir, 'test.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    const body = { ok: false, error: { code: 'rate_limited', message: 'm' } }
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(429, body)))
+    const io = makeIo()
+    const code = await run(['validate', file], io)
+    expect(code).toBe(3)
+    expect(io.stderrText()).toContain('잠시 후')
+  })
+})
+
+describe('validate 성공 + warnings', () => {
+  it('blocker가 없어도 warnings를 사람용 출력에 보여 준다', async () => {
+    const file = path.join(tmpDir, 'test.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    const body = {
+      ok: true,
+      blockers: [],
+      warnings: [{ code: 'title_short', message: '제목이 짧아요', path: ['title'] }],
+    }
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(200, body)))
+    const io = makeIo()
+    const code = await run(['validate', file], io)
+    expect(code).toBe(0)
+    expect(io.stdoutText()).toContain('title_short')
+  })
+})
+
+describe('list의 손상된 기록 파일', () => {
+  it('깨진 파일이면 stderr로 알리고 빈 목록을 보여 준다', async () => {
+    const configDir = path.join(tmpHome, '.config', 'letsplaytest')
+    await fs.mkdir(configDir, { recursive: true })
+    await fs.writeFile(path.join(configDir, 'tests.json'), '{ broken')
+    const io = makeIo()
+    const code = await run(['list'], io)
+    expect(code).toBe(0)
+    expect(io.stderrText()).toContain('손상')
+  })
+})
+
+describe('저장 실패는 발행을 실패시키지 않는다', () => {
+  it('쓸 수 없는 XDG_CONFIG_HOME이어도 publish는 exit 0이다', async () => {
+    const file = path.join(tmpDir, 'test.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance', title: '짜장 vs 짬뽕' }))
+    const body = {
+      ok: true,
+      slug: 'ab12cd34',
+      url: 'https://letsplaytest.com/t/ab12cd34',
+      ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
+      warnings: [],
+    }
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(201, body)))
+
+    // XDG_CONFIG_HOME 자리에 디렉터리가 아니라 파일을 둬서 mkdir/write가 실패하게 만든다.
+    const blockerFile = path.join(tmpDir, 'not-a-dir')
+    await fs.writeFile(blockerFile, 'i am a file, not a directory')
+
+    const out: string[] = []
+    const err: string[] = []
+    const io: Io = {
+      stdout: (s) => out.push(s),
+      stderr: (s) => err.push(s),
+      readStdin: async () => '',
+      isStdinTTY: () => false,
+      env: { XDG_CONFIG_HOME: blockerFile } as unknown as NodeJS.ProcessEnv,
+      homedir: () => tmpHome,
+    }
+    const code = await run(['publish', file], io)
+    expect(code).toBe(0)
+    // 저장에 실패했다는 경고는 나오지만(구체적 문구는 실패 지점에 따라 다르다),
+    // 발행 자체는 exit 0으로 끝난다 — 중복 발행을 유발하지 않는다.
+    expect(err.join('').length).toBeGreaterThan(0)
+    expect(out.join('')).toContain('url:')
+  })
+})
+
+describe('동시 publish', () => {
+  it('병렬로 10번 발행해도 기록 10건이 모두 남는다', async () => {
+    const files = await Promise.all(
+      Array.from({ length: 10 }, async (_v, i) => {
+        const file = path.join(tmpDir, `test-${i}.json`)
+        await fs.writeFile(file, JSON.stringify({ kind: 'balance', title: `테스트 ${i}` }))
+        return file
+      }),
+    )
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        const slug = `slug-${Math.random().toString(36).slice(2)}`
+        return jsonResponse(201, {
+          ok: true,
+          slug,
+          url: `https://letsplaytest.com/t/${slug}`,
+          ownerUrl: `https://letsplaytest.com/t/${slug}/owner/tok`,
+          warnings: [],
+        })
+      }),
+    )
+    await Promise.all(files.map((file) => run(['publish', file], makeIo())))
+
+    const stored = JSON.parse(
+      await fs.readFile(resolveStoreFile({ env: {} as NodeJS.ProcessEnv, homedir: () => tmpHome }), 'utf8'),
+    )
+    expect(stored).toHaveLength(10)
   })
 })

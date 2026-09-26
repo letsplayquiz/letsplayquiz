@@ -1,15 +1,25 @@
-#!/usr/bin/env node
-// letsplaytest CLI 본체. `run(argv, io)`가 핵심이고, 파일 맨 아래의 `main()`은
-// 이걸 실제 `process`에 연결하는 얇은 wrapper다(테스트는 `run`만 직접 부른다 —
-// process를 건드리지 않고 종료 코드를 검사할 수 있다).
+// letsplaytest CLI 본체. `run(argv, io)`가 핵심이고, `main()`은 이걸 실제
+// `process`에 연결한다(테스트는 `run`만 직접 부른다 — process를 건드리지 않고
+// 종료 코드를 검사할 수 있다). 실행 파일 진입점은 `bin.ts`다 — npm/npx가 만드는
+// `bin`은 심볼릭 링크인데, "이 모듈이 메인 모듈인가"를 `import.meta.url`과
+// `argv[1]`을 비교해 판정하던 예전 방식은 심볼릭 링크를 통해 실행되면 두 URL이
+// 달라져 거짓으로 판정되고 CLI가 아무 것도 안 하고 조용히 종료해 버렸다. 그래서
+// 이 파일은 조건부 실행을 하지 않고, `bin.ts`가 무조건 `main()`을 부른다.
 import { createRequire } from 'node:module'
-import { pathToFileURL } from 'node:url'
 import { promises as fsPromises } from 'node:fs'
 import os from 'node:os'
 
 import { parseArgs, HELP_TEXT, type ParsedArgs } from './args.js'
-import { fetchGuide, postJson, decideOutcome, isRecord, userAgent, type Outcome } from './api.js'
-import { formatIssues, type Issue } from './format.js'
+import {
+  fetchGuide,
+  postJson,
+  decideOutcome,
+  isRecord,
+  userAgent,
+  withRetryAfterField,
+  type Outcome,
+} from './api.js'
+import { formatIssues } from './format.js'
 import { saveRecord, loadRecords, type StoreIo } from './store.js'
 
 const require = createRequire(import.meta.url)
@@ -20,6 +30,7 @@ export interface Io {
   stdout: (s: string) => void
   stderr: (s: string) => void
   readStdin: () => Promise<string>
+  isStdinTTY: () => boolean
   env: NodeJS.ProcessEnv
   homedir: () => string
 }
@@ -28,21 +39,33 @@ function storeIo(io: Io): StoreIo {
   return { env: io.env, homedir: io.homedir }
 }
 
+/** UTF-8 BOM(`﻿`)이 앞에 붙어 있으면 지운다 — Windows 메모장 등으로 저장한
+ * JSON 파일에 흔히 붙는데, `JSON.parse`는 이걸 그대로 문법 오류로 본다. */
+function stripBom(text: string): string {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text
+}
+
 async function readInput(
   file: string,
   io: Io,
 ): Promise<{ ok: true; text: string } | { ok: false; message: string }> {
   if (file === '-') {
+    if (io.isStdinTTY()) {
+      return {
+        ok: false,
+        message: '표준 입력이 비어 있어요 — 터미널에 직접 입력하지 말고 파일을 쓰거나 파이프로 보내 주세요',
+      }
+    }
     try {
       const text = await io.readStdin()
-      return { ok: true, text }
+      return { ok: true, text: stripBom(text) }
     } catch (e) {
       return { ok: false, message: `표준 입력을 읽을 수 없어요: ${(e as Error).message}` }
     }
   }
   try {
     const text = await fsPromises.readFile(file, 'utf8')
-    return { ok: true, text }
+    return { ok: true, text: stripBom(text) }
   } catch (e) {
     const err = e as NodeJS.ErrnoException
     if (err.code === 'ENOENT') return { ok: false, message: `파일을 찾을 수 없어요: ${file}` }
@@ -58,42 +81,57 @@ function parseJsonOrUndefined(text: string): unknown {
   }
 }
 
+function retryMessage(seconds: number | undefined): string {
+  return seconds !== undefined ? `${seconds}초 후 다시 시도해 주세요` : '잠시 후 다시 시도해 주세요'
+}
+
+/** validate(그리고 publish 실패 경로)의 사람용 출력. blocker가 없어도 warning은
+ * 보여 준다 — AI가 발행 전에 고칠 여지를 놓치지 않게 한다. */
 function printOutcomeHuman(outcome: Outcome, io: Io): void {
   if (outcome.exitCode === 3) {
-    const seconds = outcome.retryAfterSeconds ?? '잠시'
-    io.stderr(`요청이 많아요. ${seconds}초 후 다시 시도해 주세요\n`)
+    io.stderr(`요청이 많아요. ${retryMessage(outcome.retryAfterSeconds)}\n`)
     return
   }
   const body = outcome.json
-  if (isRecord(body) && Array.isArray(body.blockers) && body.blockers.length > 0) {
-    io.stdout(formatIssues(body.blockers as Issue[]) + '\n')
-    return
-  }
   if (isRecord(body) && body.ok === false) {
-    const message = isRecord(body.error) ? String(body.error.message ?? '') : '오류가 발생했어요'
-    io.stderr((message || '오류가 발생했어요') + '\n')
+    const blockers = Array.isArray(body.blockers) ? body.blockers : []
+    if (blockers.length > 0) {
+      io.stdout(`${formatIssues(blockers)}\n`)
+      return
+    }
+    const message = isRecord(body.error) ? String(body.error.message ?? '') : ''
+    io.stderr(`${message || '오류가 발생했어요'}\n`)
     return
   }
   if (isRecord(body) && body.ok === true) {
     io.stdout('통과했어요. 발행해도 좋아요\n')
+    const warnings = Array.isArray(body.warnings) ? body.warnings : []
+    if (warnings.length > 0) {
+      io.stdout('경고:\n')
+      io.stdout(`${formatIssues(warnings)}\n`)
+    }
     return
   }
   io.stderr('서버 응답을 이해할 수 없어요\n')
 }
 
+function printJson(outcome: Outcome, io: Io): void {
+  io.stdout(`${JSON.stringify(withRetryAfterField(outcome.json, outcome.retryAfterSeconds))}\n`)
+}
+
 async function runGuide(args: ParsedArgs, io: Io, ua: string): Promise<number> {
   const result = await fetchGuide(args.api, { kind: args.kind, lang: args.lang, asJson: args.json }, ua)
   if (!result.ok) {
-    io.stderr(`서버에 연결할 수 없어요: ${args.api}\n`)
+    io.stderr(result.timedOut ? '서버가 30초 안에 응답하지 않았어요\n' : `서버에 연결할 수 없어요: ${args.api}\n`)
     return 4
   }
-  const outcome = decideOutcome(result.response)
+  const outcome = decideOutcome(result.response, 'guide')
   if (outcome.exitCode === 0) {
     const text = result.response.text
     io.stdout(text.endsWith('\n') ? text : `${text}\n`)
     return 0
   }
-  if (args.json) io.stdout(`${JSON.stringify(outcome.json)}\n`)
+  if (args.json) printJson(outcome, io)
   else printOutcomeHuman(outcome, io)
   return outcome.exitCode
 }
@@ -111,11 +149,11 @@ async function runValidate(args: ParsedArgs, io: Io, ua: string): Promise<number
   }
   const result = await postJson(args.api, '/api/v1/tests/validate', data, { lang: args.lang }, ua)
   if (!result.ok) {
-    io.stderr(`서버에 연결할 수 없어요: ${args.api}\n`)
+    io.stderr(result.timedOut ? '서버가 30초 안에 응답하지 않았어요\n' : `서버에 연결할 수 없어요: ${args.api}\n`)
     return 4
   }
-  const outcome = decideOutcome(result.response)
-  if (args.json) io.stdout(`${JSON.stringify(outcome.json)}\n`)
+  const outcome = decideOutcome(result.response, 'contract')
+  if (args.json) printJson(outcome, io)
   else printOutcomeHuman(outcome, io)
   return outcome.exitCode
 }
@@ -133,37 +171,46 @@ async function runPublish(args: ParsedArgs, io: Io, ua: string): Promise<number>
   }
   const result = await postJson(args.api, '/api/v1/tests', data, { lang: args.lang }, ua)
   if (!result.ok) {
-    io.stderr(`서버에 연결할 수 없어요: ${args.api}\n`)
+    io.stderr(result.timedOut ? '서버가 30초 안에 응답하지 않았어요\n' : `서버에 연결할 수 없어요: ${args.api}\n`)
     return 4
   }
-  const outcome = decideOutcome(result.response)
+  const outcome = decideOutcome(result.response, 'contract')
 
-  if (args.json) io.stdout(`${JSON.stringify(outcome.json)}\n`)
-
-  if (outcome.exitCode === 0 && isRecord(outcome.json)) {
-    const body = outcome.json as {
-      slug?: string
-      url?: string
-      ownerUrl?: string
-      warnings?: Issue[]
+  if (outcome.exitCode === 0) {
+    const body = outcome.json
+    const hasRequiredFields =
+      isRecord(body) &&
+      typeof body.slug === 'string' &&
+      typeof body.url === 'string' &&
+      typeof body.ownerUrl === 'string'
+    if (!hasRequiredFields) {
+      // ok: true인데 계약이 요구하는 필드가 없다 — 성공으로 믿었다가 대시보드
+      // 링크를 잃어버리는 것보다, 원문을 보여 주고 실패로 처리하는 게 낫다.
+      io.stderr(`서버 응답이 이상해요(slug/url/ownerUrl이 없어요): ${result.response.text}\n`)
+      return 4
     }
-    if (!args.json) {
+
+    if (args.json) printJson(outcome, io)
+    else {
       io.stdout(`url: ${body.url}\n`)
       io.stdout(`ownerUrl: ${body.ownerUrl}\n`)
       io.stdout('이 링크는 창작자 전용이에요 — 남에게 보내지 마세요\n')
-      if (Array.isArray(body.warnings) && body.warnings.length > 0) {
-        io.stdout(`${formatIssues(body.warnings)}\n`)
+      const warnings = Array.isArray(body.warnings) ? body.warnings : []
+      if (warnings.length > 0) {
+        io.stdout('경고:\n')
+        io.stdout(`${formatIssues(warnings)}\n`)
       }
     }
-    if (!args.noSave && body.slug && body.url && body.ownerUrl) {
+
+    if (!args.noSave) {
       const title = isRecord(data) && typeof data.title === 'string' ? data.title : ''
       const kind = isRecord(data) && typeof data.kind === 'string' ? data.kind : ''
       const saveResult = await saveRecord(storeIo(io), {
-        slug: body.slug,
+        slug: body.slug as string,
         title,
         kind,
-        url: body.url,
-        ownerUrl: body.ownerUrl,
+        url: body.url as string,
+        ownerUrl: body.ownerUrl as string,
         api: args.api,
         publishedAt: new Date().toISOString(),
       })
@@ -172,12 +219,14 @@ async function runPublish(args: ParsedArgs, io: Io, ua: string): Promise<number>
     return 0
   }
 
-  if (!args.json) printOutcomeHuman(outcome, io)
+  if (args.json) printJson(outcome, io)
+  else printOutcomeHuman(outcome, io)
   return outcome.exitCode
 }
 
 async function runList(args: ParsedArgs, io: Io): Promise<number> {
-  const records = await loadRecords(storeIo(io))
+  const { records, warning } = await loadRecords(storeIo(io))
+  if (warning) io.stderr(`${warning}\n`)
   const sorted = [...records].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
   if (args.json) {
     io.stdout(`${JSON.stringify(sorted)}\n`)
@@ -234,23 +283,20 @@ function readStreamToString(stream: NodeJS.ReadableStream): Promise<string> {
   })
 }
 
-async function main(): Promise<void> {
+/**
+ * 실제 `process`에 연결한다. `process.exit()`을 부르지 않는다 — `process.exit`은
+ * 아직 flush되지 않은 stdout 버퍼(파이프로 큰 출력을 받을 때 특히)를 자를 수
+ * 있다. `process.exitCode`만 설정하고 이벤트 루프가 자연스럽게 비도록 둔다.
+ */
+export async function main(): Promise<void> {
   const io: Io = {
     stdout: (s) => process.stdout.write(s),
     stderr: (s) => process.stderr.write(s),
     readStdin: () => readStreamToString(process.stdin),
+    isStdinTTY: () => Boolean(process.stdin.isTTY),
     env: process.env,
     homedir: () => os.homedir(),
   }
   const code = await run(process.argv.slice(2), io)
-  process.exit(code)
-}
-
-const isMainModule = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href
-
-if (isMainModule) {
-  main().catch((e) => {
-    console.error(e)
-    process.exit(4)
-  })
+  process.exitCode = code
 }

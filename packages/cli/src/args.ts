@@ -1,6 +1,7 @@
 // argv 파싱. node:util의 parseArgs만 쓰고 의존성을 더하지 않는다(스펙 §7.1).
-// 명령별 필수값(validate/publish의 파일 인자)과 옵션값(--kind, --lang)의 허용
-// 범위는 여기서 확정한다 — 서버까지 보내지 않고 로컬에서 걸러 종료 코드 2를 낸다.
+// 명령별 필수값(validate/publish의 파일 인자)과 옵션값(--kind, --lang, --api)의
+// 허용 범위는 여기서 확정한다 — 서버까지 보내지 않고 로컬에서 걸러 종료 코드
+// 2를 낸다.
 import { parseArgs as nodeParseArgs } from 'node:util'
 
 export const KINDS = ['score', 'type', 'balance', 'worldcup'] as const
@@ -42,11 +43,34 @@ export const HELP_TEXT = `letsplaytest — AI 에이전트로 PlayTest 테스트
 공통 옵션:
   --json          서버 응답(또는 list의 기록)을 그대로 출력
   --lang ko|ja|en 서버 메시지 언어(쿼리 lang)
-  --api <url>     서버 주소 (기본값: ${DEFAULT_API}, 환경변수 LETSPLAYTEST_API로도 설정 가능)
+  --api <url>     서버 주소. https만 허용(로컬 개발은 http://localhost, http://127.0.0.1 예외).
+                  기본값: ${DEFAULT_API}, 환경변수 LETSPLAYTEST_API로도 설정 가능
   --no-save       publish 결과를 ~/.config/letsplaytest/tests.json에 남기지 않음
   --help          도움말 출력
   --version       버전 출력
 `
+
+const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1'])
+
+/**
+ * `--api`는 https만 허용한다 — 대시보드 링크(`ownerUrl`)가 평문 http로 오가면
+ * 그 자리에서 가로챌 수 있다. 로컬 개발 서버(`http://localhost:3000`)는 예외로
+ * 둔다. `new URL().hostname`은 IPv6를 대괄호 없이 돌려준다(`[::1]` → `::1`).
+ */
+function validateApi(raw: string): { ok: true } | { ok: false; message: string } {
+  let url: URL
+  try {
+    url = new URL(raw)
+  } catch {
+    return { ok: false, message: `--api 값이 올바른 URL이 아니에요: ${raw}` }
+  }
+  if (url.protocol === 'https:') return { ok: true }
+  if (url.protocol === 'http:' && LOCAL_HOSTNAMES.has(url.hostname)) return { ok: true }
+  return {
+    ok: false,
+    message: `--api는 https만 허용해요(로컬 http://localhost, http://127.0.0.1 예외): ${raw}`,
+  }
+}
 
 export function parseArgs(argv: string[], env: NodeJS.ProcessEnv): ParseOutcome {
   let parsed: ReturnType<typeof nodeParseArgs>
@@ -71,6 +95,10 @@ export function parseArgs(argv: string[], env: NodeJS.ProcessEnv): ParseOutcome 
 
   if (parsed.values.version) return { kind: 'version' }
   if (parsed.values.help) return { kind: 'help', exitCode: 0 }
+
+  if (parsed.positionals.length > 2) {
+    return { kind: 'error', message: '위치 인자는 명령과 파일 하나뿐이에요', exitCode: 2 }
+  }
 
   const [command, file] = parsed.positionals
   if (!command) return { kind: 'help', exitCode: 2 }
@@ -104,6 +132,8 @@ export function parseArgs(argv: string[], env: NodeJS.ProcessEnv): ParseOutcome 
   }
 
   const api = (parsed.values.api as string | undefined) || env.LETSPLAYTEST_API || DEFAULT_API
+  const apiCheck = validateApi(api)
+  if (!apiCheck.ok) return { kind: 'error', message: apiCheck.message, exitCode: 2 }
 
   return {
     kind: 'run',

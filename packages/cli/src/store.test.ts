@@ -109,14 +109,14 @@ describe('saveRecord', () => {
 
   it('--no-save 시나리오는 saveRecord를 부르지 않는다(호출부 책임) — 여기서는 저장 자체를 검증', async () => {
     await saveRecord(io(), record)
-    const records = await loadRecords(io())
+    const { records } = await loadRecords(io())
     expect(records).toHaveLength(1)
   })
 
   it('기록 항목에 필요한 필드가 모두 있다', async () => {
     await saveRecord(io(), record)
-    const [saved] = await loadRecords(io())
-    expect(saved).toMatchObject({
+    const { records } = await loadRecords(io())
+    expect(records[0]).toMatchObject({
       slug: expect.any(String),
       title: expect.any(String),
       kind: expect.any(String),
@@ -127,7 +127,8 @@ describe('saveRecord', () => {
     })
   })
 
-  it('깨진 파일은 .bak으로 옮기고 새로 쓴다', async () => {
+  it('깨진 파일은 타임스탬프가 붙은 .bak으로 옮기고(600) 새로 쓴다', async () => {
+    if (isWindows) return
     const dir = resolveConfigDir(io())
     await fs.mkdir(dir, { recursive: true })
     const file = resolveStoreFile(io())
@@ -136,9 +137,26 @@ describe('saveRecord', () => {
     const result = await saveRecord(io(), record)
     expect(result.warning).toBeUndefined()
 
-    const backup = await fs.readFile(`${file}.bak`, 'utf8')
+    const entries = await fs.readdir(dir)
+    const backupName = entries.find((name) => name.startsWith('tests.json.bak.'))
+    expect(backupName).toBeDefined()
+    const backup = await fs.readFile(path.join(dir, backupName as string), 'utf8')
     expect(backup).toBe('{ this is not json')
+    const backupMode = (await fs.stat(path.join(dir, backupName as string))).mode & 0o777
+    expect(backupMode).toBe(0o600)
 
+    const fresh = JSON.parse(await fs.readFile(file, 'utf8'))
+    expect(fresh).toEqual([record])
+  })
+
+  it('배열이 아닌 JSON도 손상으로 보고 백업한다', async () => {
+    const dir = resolveConfigDir(io())
+    await fs.mkdir(dir, { recursive: true })
+    const file = resolveStoreFile(io())
+    await fs.writeFile(file, JSON.stringify({ not: 'an array' }))
+
+    const result = await saveRecord(io(), record)
+    expect(result.warning).toBeUndefined()
     const fresh = JSON.parse(await fs.readFile(file, 'utf8'))
     expect(fresh).toEqual([record])
   })
@@ -146,13 +164,47 @@ describe('saveRecord', () => {
   it('여러 번 저장하면 기록이 누적된다', async () => {
     await saveRecord(io(), record)
     await saveRecord(io(), { ...record, slug: 'def456' })
-    const records = await loadRecords(io())
+    const { records } = await loadRecords(io())
     expect(records).toHaveLength(2)
+  })
+
+  it('절대 던지지 않는다 — 저장에 실패해도 {warning}으로 돌아온다', async () => {
+    // XDG_CONFIG_HOME 자리에 디렉터리 대신 파일을 둬서 mkdir/쓰기가 실패하게 만든다.
+    const blockerFile = path.join(tmpHome, 'not-a-dir')
+    writeFileSync(blockerFile, 'i am a file')
+    const badIo = io({ XDG_CONFIG_HOME: blockerFile })
+    const result = await saveRecord(badIo, record)
+    expect(result.warning).toBeDefined()
+  })
+
+  it('병렬로 여러 번 저장해도 기록을 잃지 않는다(락)', async () => {
+    await Promise.all(
+      Array.from({ length: 8 }, (_v, i) => saveRecord(io(), { ...record, slug: `slug-${i}` })),
+    )
+    const { records } = await loadRecords(io())
+    expect(records).toHaveLength(8)
   })
 })
 
 describe('loadRecords', () => {
   it('파일이 없으면 빈 배열', async () => {
-    expect(await loadRecords(io())).toEqual([])
+    expect(await loadRecords(io())).toEqual({ records: [] })
+  })
+
+  it('JSON이 손상됐으면 경고와 함께 빈 배열을 낸다', async () => {
+    const dir = resolveConfigDir(io())
+    await fs.mkdir(dir, { recursive: true })
+    await fs.writeFile(resolveStoreFile(io()), '{ broken')
+    const result = await loadRecords(io())
+    expect(result.records).toEqual([])
+    expect(result.warning).toBeDefined()
+  })
+
+  it('항목 하나가 깨져 있어도 나머지는 보여 준다', async () => {
+    const dir = resolveConfigDir(io())
+    await fs.mkdir(dir, { recursive: true })
+    await fs.writeFile(resolveStoreFile(io()), JSON.stringify([record, { broken: true }, 'not an object']))
+    const result = await loadRecords(io())
+    expect(result.records).toEqual([record])
   })
 })

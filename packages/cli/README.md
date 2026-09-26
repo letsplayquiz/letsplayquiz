@@ -31,7 +31,7 @@ npx letsplaytest guide --kind balance
 |---|---|
 | `--json` | 서버 응답(또는 `list`의 기록)을 그대로 출력한다 |
 | `--lang ko\|ja\|en` | 서버 메시지 언어(쿼리 `lang`). 지금은 항상 한국어 메시지가 온다 |
-| `--api <url>` | 서버 주소. 환경변수 `LETSPLAYTEST_API`로도 설정한다(플래그가 우선). 기본값 `https://letsplaytest.com` |
+| `--api <url>` | 서버 주소. `https`만 허용한다(로컬 개발은 `http://localhost`, `http://127.0.0.1` 예외 — 그 밖의 `http`는 대시보드 링크가 평문으로 오갈 수 있어 거절한다). 환경변수 `LETSPLAYTEST_API`로도 설정한다(플래그가 우선). 기본값 `https://letsplaytest.com` |
 | `--no-save` | `publish` 결과를 기록 파일에 남기지 않는다 |
 | `--help` | 도움말 출력 |
 | `--version` | 버전 출력 |
@@ -47,6 +47,9 @@ npx letsplaytest guide --kind balance
 | 4 | 네트워크·서버 오류 | 나중에 다시 |
 
 1과 0은 HTTP 상태가 아니라 응답 본문의 `ok`로 갈립니다 — `validate`는 실패해도 200을 냅니다.
+`validate`·`publish`는 서버가 항상 `{ ok: boolean, ... }`을 낸다고 계약돼 있어서, 응답이
+JSON이 아니거나 `ok` 필드가 없으면(프록시 오류 페이지 등) 성공으로 잘못 읽지 않고 4로
+처리합니다. 서버가 30초 안에 응답하지 않아도(연결은 됐지만 응답이 느린 경우 포함) 4입니다.
 
 ## 대시보드 링크는 어디에 저장되나
 
