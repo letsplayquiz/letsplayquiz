@@ -9,6 +9,7 @@
 // `saveRecord`는 무엇이 잘못되든 던지지 않고 `{ warning }`을 돌려준다.
 import { promises as fs, lstatSync, mkdirSync, chmodSync } from 'node:fs'
 import path from 'node:path'
+import crypto from 'node:crypto'
 
 export interface TestRecord {
   slug: string
@@ -108,43 +109,152 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+interface LockInfo {
+  pid: number
+  token: string
+  createdAt: number
+}
+
+function isLockInfo(v: unknown): v is LockInfo {
+  return (
+    isRecordLike(v) &&
+    typeof v.pid === 'number' &&
+    typeof v.token === 'string' &&
+    typeof v.createdAt === 'number'
+  )
+}
+
+async function readLockInfo(lockFile: string): Promise<LockInfo | undefined> {
+  try {
+    const raw = await fs.readFile(lockFile, 'utf8')
+    const parsed: unknown = JSON.parse(raw)
+    return isLockInfo(parsed) ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
+
 /**
- * 동시에 여러 `publish`가 같은 tests.json을 read→push→write하면 나중에 쓴
- * 쪽이 먼저 쓴 기록을 덮어써 잃어버린다. `open(path, 'wx')`는 파일이 이미
- * 있으면 원자적으로 실패하는 걸 이용해 락으로 쓴다. 죽은 프로세스가 남긴
- * 락(비정상 종료로 release가 안 불린 경우)은 30초가 지나면 오래된 것으로
- * 보고 지운다. 최대 2초 정도 짧게 재시도하고, 그래도 못 잡으면 포기한다 —
- * 발행 자체는 이미 끝났으니 기록 저장 하나 때문에 오래 붙잡을 필요는 없다.
+ * `pid`가 아직 살아 있는지 본다(신호 0은 아무 것도 보내지 않고 존재만 확인한다 —
+ * Windows에서도 동작한다). `ESRCH`(그런 프로세스 없음)만 "죽었다"로 본다.
+ * `EPERM`(다른 사용자 소유라 신호를 못 보냄)이나 그 밖의 오류는 "살아 있을 수도
+ * 있다"로 보수적으로 판단한다 — 살아 있는 프로세스의 락을 빼앗는 것보다, 죽은
+ * 락을 조금 늦게 치우는 쪽이 훨씬 안전하다.
  */
-async function acquireLock(dir: string): Promise<{ ok: true; release: () => Promise<void> } | { ok: false }> {
+function isProcessAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code !== 'ESRCH'
+  }
+}
+
+interface LockHandle {
+  release: () => Promise<void>
+  /** tests.json을 쓰기 직전에 부른다 — 그 사이 다른 프로세스가 이 락을 "죽은
+   * 프로세스의 오래된 락"으로 오판해 치우고 자기 락을 잡았을 수 있다. */
+  verifyOwnership: () => Promise<boolean>
+}
+
+type AcquireResult = { ok: true; lock: LockHandle } | { ok: false; reason?: string }
+
+/**
+ * 동시에 여러 `publish`가 같은 tests.json을 read→push→write하면 나중에 쓴 쪽이
+ * 먼저 쓴 기록을 덮어써 잃어버린다. `open(path, 'wx')`는 파일이 이미 있으면
+ * 원자적으로 실패하는 걸 이용해 락으로 쓴다.
+ *
+ * 락 파일에는 `{ pid, token, createdAt }`을 적는다. "오래된 락"은 30초를
+ * 넘겼다는 것만으로는 안 지운다 — 그 pid가 실제로 죽었을 때만(`isProcessAlive`)
+ * 지운다. 지우기 직전에 파일을 다시 읽어 토큰이 처음 본 것과 같을 때만
+ * unlink한다 — 그 사이 다른 프로세스가 이미 지우고 자기 락을 새로 잡았다면
+ * 토큰이 달라져 있으므로 건드리지 않는다(동시에 두 프로세스가 같은 오래된
+ * 락을 발견해도 서로의 새 락을 지우지 않는다).
+ *
+ * 모든 재시도 경로는 **호출자가 정한 `deadline`을 반드시 거쳐서** 다음 시도로
+ * 넘어간다 — 예전 버전은 "오래된 락을 지웠다"는 이유로 `continue`해 데드라인
+ * 검사를 건너뛸 수 있었고, unlink가 계속 실패하는 상황(락이 디렉터리이거나
+ * 권한이 없는 경우)에서 무한 루프가 됐다.
+ */
+async function acquireLock(dir: string, deadline: number): Promise<AcquireResult> {
   const lockFile = path.join(dir, 'tests.json.lock')
-  const start = Date.now()
+
+  // 락 경로가 이미 파일이 아닌 무언가(디렉터리 등)로 막혀 있으면 재시도해도
+  // 나아지지 않는다 — 곧장 포기한다.
+  try {
+    const stat = await fs.lstat(lockFile)
+    if (!stat.isFile()) {
+      return { ok: false, reason: `기록 락 경로가 파일이 아니에요(저장을 건너뜁니다): ${lockFile}` }
+    }
+  } catch {
+    // 없으면 문제 없다 — 아래에서 만든다.
+  }
+
   for (;;) {
+    const token = crypto.randomBytes(16).toString('hex')
     try {
       const handle = await fs.open(lockFile, 'wx')
-      await handle.close()
+      try {
+        await handle.writeFile(JSON.stringify({ pid: process.pid, token, createdAt: Date.now() } satisfies LockInfo))
+      } finally {
+        await handle.close()
+      }
       return {
         ok: true,
-        release: async () => {
-          try {
-            await fs.unlink(lockFile)
-          } catch {
-            // 이미 없으면(누가 정리했으면) 그걸로 됐다.
-          }
+        lock: {
+          release: async () => {
+            const current = await readLockInfo(lockFile)
+            if (current && current.token === token) {
+              await fs.unlink(lockFile).catch(() => {})
+            }
+          },
+          verifyOwnership: async () => {
+            const current = await readLockInfo(lockFile)
+            return current !== undefined && current.token === token
+          },
         },
       }
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') return { ok: false }
-      try {
-        const stat = await fs.stat(lockFile)
-        if (Date.now() - stat.mtimeMs > LOCK_STALE_MS) {
-          await fs.unlink(lockFile)
-          continue
+      const err = e as NodeJS.ErrnoException
+
+      if (err.code !== 'EEXIST') {
+        return {
+          ok: false,
+          reason: `기록 폴더를 만들거나 쓸 수 없어요: ${lockFile} (${err.code ?? err.message})`,
         }
-      } catch {
-        continue // 그 사이 사라졌으면 다시 시도한다.
       }
-      if (Date.now() - start > LOCK_RETRY_TOTAL_MS) return { ok: false }
+
+      // 락이 있다 — 파일인지, 죽은 프로세스가 남긴 오래된 락인지 본다. 무엇을
+      // 하든(지웠든, 못 지웠든, 그대로 두든) 아래 데드라인 검사를 반드시 거친다.
+      let stat
+      try {
+        stat = await fs.lstat(lockFile)
+      } catch {
+        stat = undefined // 그 사이 사라졌다 — 데드라인만 보고 다시 시도한다.
+      }
+
+      if (stat && !stat.isFile()) {
+        return { ok: false, reason: `기록 락 경로가 파일이 아니에요(저장을 건너뜁니다): ${lockFile}` }
+      }
+
+      if (stat) {
+        const info = await readLockInfo(lockFile)
+        const age = Date.now() - stat.mtimeMs
+        const isStale = age > LOCK_STALE_MS && (info === undefined || !isProcessAlive(info.pid))
+        if (isStale) {
+          // 지우기 직전에 다시 읽어 같은 락인지 확인한다(동시 정리 방지).
+          const recheck = await readLockInfo(lockFile)
+          const stillSame = info === undefined ? recheck === undefined : recheck?.token === info.token
+          if (stillSame) {
+            await fs.unlink(lockFile).catch(() => {})
+          }
+        }
+      }
+
+      if (Date.now() > deadline) {
+        return { ok: false, reason: '기록 파일이 다른 프로세스에서 쓰이고 있어요 — 이번엔 저장을 건너뜁니다' }
+      }
       await sleep(LOCK_RETRY_INTERVAL_MS)
     }
   }
@@ -169,11 +279,11 @@ export async function saveRecord(io: StoreIo, record: TestRecord): Promise<{ war
       }
     }
 
-    const lock = await acquireLock(dir)
-    if (!lock.ok) {
-      return { warning: '기록 파일이 다른 프로세스에서 쓰이고 있어요 — 이번엔 저장을 건너뜁니다' }
+    const lockResult = await acquireLock(dir, Date.now() + LOCK_RETRY_TOTAL_MS)
+    if (!lockResult.ok) {
+      return { warning: lockResult.reason ?? '기록 파일이 다른 프로세스에서 쓰이고 있어요 — 이번엔 저장을 건너뜁니다' }
     }
-    lockRelease = lock.release
+    lockRelease = lockResult.lock.release
 
     let records: TestRecord[] = []
     try {
@@ -202,6 +312,12 @@ export async function saveRecord(io: StoreIo, record: TestRecord): Promise<{ war
     }
 
     records.push(record)
+
+    // 다른 프로세스가 그 사이 이 락을 "죽은 프로세스의 오래된 락"으로 오판해
+    // 치우고 자기 락을 잡았을 수 있다 — 쓰기 직전에 다시 확인한다.
+    if (!(await lockResult.lock.verifyOwnership())) {
+      return { warning: '기록 락을 잃어버려서 저장을 건너뜁니다(다른 프로세스와 겹쳤을 수 있어요)' }
+    }
 
     tmpFile = path.join(dir, `.tests.json.${process.pid}.${Date.now()}.tmp`)
     await fs.writeFile(tmpFile, JSON.stringify(records, null, 2), { mode: 0o600 })

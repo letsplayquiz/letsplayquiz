@@ -93,22 +93,28 @@ describe('parseArgs', () => {
   })
 
   it('--api가 http이고 로컬이 아니면 오류(2)를 낸다', () => {
-    const outcome = parseArgs(['list', '--api', 'http://example.com'], env())
+    const outcome = parseArgs(['guide', '--api', 'http://example.com'], env())
     expect(outcome).toEqual({ kind: 'error', message: expect.stringContaining('https'), exitCode: 2 })
   })
 
   it('--api가 올바른 URL이 아니면 오류(2)를 낸다', () => {
-    const outcome = parseArgs(['list', '--api', 'not a url'], env())
+    const outcome = parseArgs(['guide', '--api', 'not a url'], env())
     expect(outcome.kind).toBe('error')
   })
 
-  it('--api가 http://localhost, http://127.0.0.1이면 허용한다', () => {
-    expect(parseArgs(['list', '--api', 'http://localhost:3000'], env()).kind).toBe('run')
-    expect(parseArgs(['list', '--api', 'http://127.0.0.1:3000'], env()).kind).toBe('run')
+  it('--api가 http://localhost, http://127.0.0.1, http://[::1]이면 허용한다', () => {
+    expect(parseArgs(['guide', '--api', 'http://localhost:3000'], env()).kind).toBe('run')
+    expect(parseArgs(['guide', '--api', 'http://127.0.0.1:3000'], env()).kind).toBe('run')
+    expect(parseArgs(['guide', '--api', 'http://[::1]:3000'], env()).kind).toBe('run')
   })
 
   it('경로가 있는 --api도 https면 허용한다', () => {
-    const outcome = parseArgs(['list', '--api', 'https://host.example/sub/'], env())
+    const outcome = parseArgs(['guide', '--api', 'https://host.example/sub/'], env())
     expect(outcome).toMatchObject({ kind: 'run', args: { api: 'https://host.example/sub/' } })
+  })
+
+  it('list는 --api 검증을 건너뛴다(잘못된 LETSPLAYTEST_API가 로컬 목록을 막지 않게)', () => {
+    expect(parseArgs(['list'], env({ LETSPLAYTEST_API: 'http://not-local.example' })).kind).toBe('run')
+    expect(parseArgs(['list', '--api', 'not a url either'], env()).kind).toBe('run')
   })
 })

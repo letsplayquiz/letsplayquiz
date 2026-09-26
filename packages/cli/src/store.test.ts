@@ -1,10 +1,31 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { promises as fs, mkdirSync, chmodSync, symlinkSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 import { saveRecord, loadRecords, resolveStoreFile, resolveConfigDir, type StoreIo } from './store.js'
 
 const isWindows = process.platform === 'win32'
+const isRoot = !isWindows && typeof process.getuid === 'function' && process.getuid() === 0
+
+/** 실행이 끝난(=확실히 죽은) 자식 프로세스의 pid를 얻는다. `spawnSync`가 돌아온
+ * 시점엔 이미 종료돼 있으므로 플랫폼과 무관하게 항상 죽은 pid를 보장한다. */
+function deadPid(): number {
+  const result = spawnSync(process.execPath, ['-e', 'process.exit(0)'])
+  if (typeof result.pid !== 'number') throw new Error('자식 프로세스를 띄우지 못했어요')
+  return result.pid
+}
+
+/** 락 파일을 오래된 것처럼 보이게 만든다: 내용은 `{pid, token, createdAt}`,
+ * mtime은 스펙의 STALE 기준(30초)보다 훨씬 이전으로 되돌린다. */
+async function writeOldLock(dir: string, pid: number, token = 'old-token'): Promise<string> {
+  const lockFile = path.join(dir, 'tests.json.lock')
+  await fs.mkdir(dir, { recursive: true })
+  await fs.writeFile(lockFile, JSON.stringify({ pid, token, createdAt: Date.now() - 3_600_000 }))
+  const old = new Date(Date.now() - 3_600_000)
+  await fs.utimes(lockFile, old, old)
+  return lockFile
+}
 
 let tmpHome: string
 
@@ -207,4 +228,90 @@ describe('loadRecords', () => {
     const result = await loadRecords(io())
     expect(result.records).toEqual([record])
   })
+
+  it('EACCES 같은 읽기 오류는 손상으로 보지 않는다 — 백업 없이 경고만', async () => {
+    if (isWindows || isRoot) return // root는 권한 검사를 무시한다
+    const dir = resolveConfigDir(io())
+    await fs.mkdir(dir, { recursive: true })
+    const file = resolveStoreFile(io())
+    await fs.writeFile(file, JSON.stringify([record]))
+    await fs.chmod(file, 0o000)
+    try {
+      const result = await loadRecords(io())
+      expect(result.records).toEqual([])
+      expect(result.warning).toBeDefined()
+      // 백업하지 않았다 — 원본이 그대로 남아 있다(권한만 복구하면 다시 읽힌다).
+      const entries = await fs.readdir(dir)
+      expect(entries.some((name) => name.includes('.bak'))).toBe(false)
+    } finally {
+      await fs.chmod(file, 0o600)
+    }
+  })
+})
+
+describe('락 재설계 — 소유권·생존 확인', () => {
+  it('(a) 죽은 pid의 오래된 락 + 병렬 30 publish → 30건 전부 남는다', async () => {
+    const dir = resolveConfigDir(io())
+    await writeOldLock(dir, deadPid())
+
+    await Promise.all(
+      Array.from({ length: 30 }, (_v, i) => saveRecord(io(), { ...record, slug: `dead-lock-${i}` })),
+    )
+    const { records } = await loadRecords(io())
+    expect(records).toHaveLength(30)
+  }, 10_000)
+
+  it('(b) 살아 있는 pid의 오래된 락은 빼앗지 않는다 — 재시도 끝에 경고, exit은 여전히 0(저장만 건너뜀)', async () => {
+    const dir = resolveConfigDir(io())
+    await writeOldLock(dir, process.pid) // 지금 이 테스트 프로세스 — 확실히 살아 있다
+
+    const result = await saveRecord(io(), record)
+    expect(result.warning).toBeDefined()
+
+    // 살아 있는 pid의 락은 그대로 남아 있어야 한다(빼앗기지 않았다).
+    const lockFile = path.join(dir, 'tests.json.lock')
+    const lockContent = JSON.parse(await fs.readFile(lockFile, 'utf8'))
+    expect(lockContent.pid).toBe(process.pid)
+
+    // 기록도 쓰이지 않았다.
+    const { records } = await loadRecords(io())
+    expect(records).toHaveLength(0)
+  }, 10_000)
+
+  it('(c) 락 경로가 디렉터리면 재시도 없이 곧장 포기하고 경고한다', async () => {
+    const dir = resolveConfigDir(io())
+    const lockFile = path.join(dir, 'tests.json.lock')
+    await fs.mkdir(lockFile, { recursive: true }) // 락 자리에 디렉터리를 둔다
+
+    const start = Date.now()
+    const result = await saveRecord(io(), record)
+    const elapsed = Date.now() - start
+
+    expect(result.warning).toBeDefined()
+    expect(elapsed).toBeLessThan(2_000) // 재시도 데드라인을 기다리지 않고 즉시 포기한다
+  })
+
+  it('(d) release는 남의 락을 지우지 않는다', async () => {
+    const dir = resolveConfigDir(io())
+    await fs.mkdir(dir, { recursive: true })
+    const lockFile = path.join(dir, 'tests.json.lock')
+
+    // 첫 저장이 락을 잡기 직전에 "다른 프로세스"가 그 사이 락을 새로 잡았다고
+    // 가정한다: saveRecord 진행 중 같은 파일에 다른 토큰의 락을 심어 둔다.
+    // (직접 acquireLock을 노출하지 않으므로, saveRecord 한 번을 정상 진행시켜
+    // release 시점에 파일 내용이 이미 남의 것으로 바뀌어 있는 상황을 만든다.)
+    await saveRecord(io(), record) // 락 파일은 이 시점엔 이미 release되어 없다.
+    expect(await fs.readFile(lockFile, 'utf8').catch(() => undefined)).toBeUndefined()
+
+    // 이제 남이 쓰는 것처럼 락을 직접 심어 두고, saveRecord가 그 락을 지우지
+    // 않는지 본다(락을 못 잡으므로 자기 락을 만들지 않고, 기존 락도 건드리지
+    // 않아야 한다 — 살아 있는 pid이므로 stale 판정도 나지 않는다).
+    await fs.writeFile(lockFile, JSON.stringify({ pid: process.pid, token: 'someone-elses-token', createdAt: Date.now() }))
+    const before = await fs.readFile(lockFile, 'utf8')
+
+    await saveRecord(io(), { ...record, slug: 'def456' })
+
+    const after = await fs.readFile(lockFile, 'utf8').catch(() => undefined)
+    expect(after).toBe(before) // 남의 락이 그대로 남아 있다 — 지워지지 않았다.
+  }, 10_000)
 })

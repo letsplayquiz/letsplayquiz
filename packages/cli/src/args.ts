@@ -50,12 +50,14 @@ export const HELP_TEXT = `letsplaytest — AI 에이전트로 PlayTest 테스트
   --version       버전 출력
 `
 
-const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1'])
+const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
 
 /**
  * `--api`는 https만 허용한다 — 대시보드 링크(`ownerUrl`)가 평문 http로 오가면
  * 그 자리에서 가로챌 수 있다. 로컬 개발 서버(`http://localhost:3000`)는 예외로
- * 둔다. `new URL().hostname`은 IPv6를 대괄호 없이 돌려준다(`[::1]` → `::1`).
+ * 둔다. `new URL('http://[::1]:3000').hostname`은 대괄호를 포함해 `'[::1]'`을
+ * 돌려준다(다른 호스트명과 달리 IPv6 리터럴은 대괄호가 hostname의 일부다) —
+ * 그래서 목록도 대괄호를 포함한 값으로 둔다.
  */
 function validateApi(raw: string): { ok: true } | { ok: false; message: string } {
   let url: URL
@@ -132,8 +134,12 @@ export function parseArgs(argv: string[], env: NodeJS.ProcessEnv): ParseOutcome 
   }
 
   const api = (parsed.values.api as string | undefined) || env.LETSPLAYTEST_API || DEFAULT_API
-  const apiCheck = validateApi(api)
-  if (!apiCheck.ok) return { kind: 'error', message: apiCheck.message, exitCode: 2 }
+  // list는 서버를 부르지 않는다(§7.2) — 잘못 설정된 LETSPLAYTEST_API 하나 때문에
+  // 로컬 기록 조회까지 막히지 않게 이 명령만 --api 검증을 건너뛴다.
+  if (command !== 'list') {
+    const apiCheck = validateApi(api)
+    if (!apiCheck.ok) return { kind: 'error', message: apiCheck.message, exitCode: 2 }
+  }
 
   return {
     kind: 'run',

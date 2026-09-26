@@ -12,16 +12,32 @@ export interface HttpResponse {
   text: string
 }
 
-export type HttpResult = { ok: true; response: HttpResponse } | { ok: false; timedOut?: boolean }
-
-/** 서버가 30초 안에 응답하지 않으면(헤더든 본문이든) 포기한다 — 응답 없는 서버 때문에
- * 에이전트가 영영 멈춰 있게 두지 않는다. `AbortController`의 signal은 fetch의 헤더
- * 수신뿐 아니라 진행 중인 본문 스트림 읽기(`res.text()`)도 함께 중단시킨다(Fetch
- * 표준 동작) — 그래서 타이머 하나로 "본문 읽기까지 포함"이 된다. `setTimeout`을
- * 직접 쓰는 이유는 `AbortSignal.timeout()`이 테스트의 fake timer로 제어되지 않기
- * 때문이다.
+/**
+ * `timedOut`: 우리 타이머가 먼저 끊었다(헤더를 기다리던 중이든, 본문을 읽던
+ * 중이든 — POST는 요청 바이트가 이미 다 나간 뒤일 때가 많아 publish라면 서버가
+ * 이미 처리했을 수 있다).
+ * `bodyInterrupted`: `fetch()`는 성공해 응답(헤더)까지는 받았지만 본문을 읽는
+ * 도중 연결이 끊겼다(우리 타임아웃 때문이 아니다) — 이것도 publish라면 요청은
+ * 이미 도달했을 가능성이 높다.
+ * 이 두 경우와 달리 아무 값도 없는 `{ ok: false }`는 `fetch()` 자체가 거부된
+ * 것(DNS 실패, ECONNREFUSED 등) — 요청이 나가지도 못했다는 뜻이라 publish라도
+ * "확실히 발행 안 됨"으로 다룰 수 있다(스펙 §7.4, 2026-09-26 조율자 결정).
  */
-const DEFAULT_TIMEOUT_MS = 30_000
+export type HttpResult =
+  | { ok: true; response: HttpResponse }
+  | { ok: false; timedOut?: boolean; bodyInterrupted?: boolean }
+
+/** 서버가 정해진 시간 안에 응답하지 않으면(헤더든 본문이든) 포기한다 — 응답
+ * 없는 서버 때문에 에이전트가 영영 멈춰 있게 두지 않는다. `AbortController`의
+ * signal은 fetch의 헤더 수신뿐 아니라 진행 중인 본문 스트림 읽기(`res.text()`)도
+ * 함께 중단시킨다(Fetch 표준 동작) — 그래서 타이머 하나로 "본문 읽기까지 포함"이
+ * 된다. `setTimeout`을 직접 쓰는 이유는 `AbortSignal.timeout()`이 테스트의 fake
+ * timer로 제어되지 않기 때문이다.
+ */
+export const DEFAULT_TIMEOUT_MS = 30_000
+/** publish만 60초 — 타임아웃 자체가 "발행됐을 수도 있다"는 뜻이 되므로(스펙
+ * §7.4), 너무 짧게 끊어 애매한 상태를 자주 만들지 않는다(2026-09-26 조율자 결정). */
+export const PUBLISH_TIMEOUT_MS = 60_000
 
 export async function httpFetch(
   url: string,
@@ -30,15 +46,20 @@ export async function httpFetch(
 ): Promise<HttpResult> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
+  let res: Response
   try {
-    const res = await fetch(url, { ...init, signal: controller.signal })
+    res = await fetch(url, { ...init, signal: controller.signal })
+  } catch {
+    clearTimeout(timer)
+    return controller.signal.aborted ? { ok: false, timedOut: true } : { ok: false }
+  }
+  try {
     const text = await res.text()
+    clearTimeout(timer)
     return { ok: true, response: { status: res.status, headers: res.headers, text } }
   } catch {
-    if (controller.signal.aborted) return { ok: false, timedOut: true }
-    return { ok: false }
-  } finally {
     clearTimeout(timer)
+    return controller.signal.aborted ? { ok: false, timedOut: true } : { ok: false, bodyInterrupted: true }
   }
 }
 
@@ -97,7 +118,7 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
-export type ExitCode = 0 | 1 | 3 | 4
+export type ExitCode = 0 | 1 | 3 | 4 | 5
 
 export interface Outcome {
   exitCode: ExitCode

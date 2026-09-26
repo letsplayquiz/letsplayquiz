@@ -159,7 +159,7 @@ describe('withRetryAfterField', () => {
 })
 
 describe('httpFetch 타임아웃', () => {
-  it('30초 안에 응답이 없으면 timedOut: true를 돌려준다', async () => {
+  it('30초 안에 응답이 없으면(헤더 대기 중) timedOut: true를 돌려준다', async () => {
     vi.useFakeTimers()
     try {
       vi.stubGlobal(
@@ -175,6 +175,81 @@ describe('httpFetch 타임아웃', () => {
       )
       const promise = httpFetch('https://api.example/slow', {})
       await vi.advanceTimersByTimeAsync(30_000)
+      const result = await promise
+      expect(result).toEqual({ ok: false, timedOut: true })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('헤더는 받았지만 본문 스트림이 멈추면(res.text()가 멈춤) timedOut: true를 돌려준다', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((_url: unknown, init?: RequestInit) => {
+          // fetch()는 곧장 resolve(헤더는 받았다)하지만, 본문 스트림 읽기
+          // (res.text())는 우리 signal이 abort될 때까지 멈춰 있다 — 서버가
+          // 헤더만 보내고 본문을 흘려보내지 않는 상황을 흉내 낸다.
+          const res = new Response(
+            new ReadableStream({
+              start(controller) {
+                init?.signal?.addEventListener('abort', () => {
+                  controller.error(new DOMException('The operation was aborted', 'AbortError'))
+                })
+              },
+            }),
+            { status: 200 },
+          )
+          return Promise.resolve(res)
+        }),
+      )
+      const promise = httpFetch('https://api.example/stall-body', {})
+      await vi.advanceTimersByTimeAsync(30_000)
+      const result = await promise
+      expect(result).toEqual({ ok: false, timedOut: true })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('헤더는 받았지만 본문이 우리 타임아웃과 무관하게 끊기면 bodyInterrupted: true를 돌려준다', async () => {
+    vi.stubGlobal('fetch', async () => {
+      const res = new Response('irrelevant')
+      vi.spyOn(res, 'text').mockRejectedValue(new Error('ECONNRESET'))
+      return res
+    })
+    const result = await httpFetch('https://api.example/dropped', {})
+    expect(result).toEqual({ ok: false, bodyInterrupted: true })
+  })
+
+  it('fetch() 자체가 거부되면(연결 실패) timedOut도 bodyInterrupted도 아니다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('ECONNREFUSED')
+      }),
+    )
+    const result = await httpFetch('https://api.example/refused', {})
+    expect(result).toEqual({ ok: false })
+  })
+
+  it('publish 타임아웃은 60초다', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          (_url: unknown, init?: RequestInit) =>
+            new Promise((_resolve, reject) => {
+              init?.signal?.addEventListener('abort', () =>
+                reject(new DOMException('The operation was aborted', 'AbortError')),
+              )
+            }),
+        ),
+      )
+      const promise = postJson('https://api.example', '/api/v1/tests', {}, {}, 'letsplaytest/1.0.0', 60_000)
+      await vi.advanceTimersByTimeAsync(60_000)
       const result = await promise
       expect(result).toEqual({ ok: false, timedOut: true })
     } finally {

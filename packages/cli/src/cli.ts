@@ -17,6 +17,7 @@ import {
   isRecord,
   userAgent,
   withRetryAfterField,
+  PUBLISH_TIMEOUT_MS,
   type Outcome,
 } from './api.js'
 import { formatIssues } from './format.js'
@@ -85,6 +86,29 @@ function retryMessage(seconds: number | undefined): string {
   return seconds !== undefined ? `${seconds}초 후 다시 시도해 주세요` : '잠시 후 다시 시도해 주세요'
 }
 
+const PUBLISH_UNKNOWN_MESSAGE =
+  '발행됐을 수 있어요 — 다시 시도하기 전에 `letsplaytest list`나 웹사이트에서 확인해 주세요'
+
+/** publish에서만 쓰는 "발행 결과 불명"(종료 코드 5) 출력. 요청이 서버에 이미
+ * 도달했을 가능성이 있는 상황(타임아웃, 본문 중간 끊김, ok:true인데 필수
+ * 필드 누락)에서 4(연결 자체가 안 됨 — 확실히 발행 안 됨)와 구분해 에이전트가
+ * 무작정 재시도로 중복 발행을 만들지 않게 한다(스펙 §7.4, 2026-09-26 조율자
+ * 결정). `raw`는 필드 누락 케이스에만 싣는다 — 깨진 JSON 안에 ownerUrl이
+ * 들어 있었을 수도 있어서 사람이 직접 볼 수 있게 한다. */
+function printPublishUnknown(io: Io, args: ParsedArgs, raw?: string): void {
+  if (args.json) {
+    const body: Record<string, unknown> = {
+      ok: false,
+      error: { code: 'publish_unknown', message: PUBLISH_UNKNOWN_MESSAGE },
+    }
+    if (raw !== undefined) body.raw = raw
+    io.stdout(`${JSON.stringify(body)}\n`)
+    return
+  }
+  io.stderr(`${PUBLISH_UNKNOWN_MESSAGE}\n`)
+  if (raw !== undefined) io.stderr(`원본 응답: ${raw}\n`)
+}
+
 /** validate(그리고 publish 실패 경로)의 사람용 출력. blocker가 없어도 warning은
  * 보여 준다 — AI가 발행 전에 고칠 여지를 놓치지 않게 한다. */
 function printOutcomeHuman(outcome: Outcome, io: Io): void {
@@ -127,6 +151,26 @@ async function runGuide(args: ParsedArgs, io: Io, ua: string): Promise<number> {
   }
   const outcome = decideOutcome(result.response, 'guide')
   if (outcome.exitCode === 0) {
+    if (args.json) {
+      // --json은 `?format=json`을 요청한 것이므로 응답이 실제로 JSON이어야
+      // 한다. 서버가 이걸 무시하고 마크다운(또는 다른 무언가)을 주면 그대로
+      // stdout에 흘려보내지 않고 bad_response로 알린다.
+      if (outcome.json === undefined) {
+        io.stdout(
+          `${JSON.stringify({
+            ok: false,
+            error: {
+              code: 'bad_response',
+              message: '서버가 JSON 응답을 주지 않았어요(?format=json을 확인해 주세요)',
+              status: result.response.status,
+            },
+          })}\n`,
+        )
+        return 4
+      }
+      io.stdout(`${JSON.stringify(outcome.json)}\n`)
+      return 0
+    }
     const text = result.response.text
     io.stdout(text.endsWith('\n') ? text : `${text}\n`)
     return 0
@@ -169,9 +213,18 @@ async function runPublish(args: ParsedArgs, io: Io, ua: string): Promise<number>
     io.stderr('JSON 형식이 아니에요\n')
     return 2
   }
-  const result = await postJson(args.api, '/api/v1/tests', data, { lang: args.lang }, ua)
+  const result = await postJson(args.api, '/api/v1/tests', data, { lang: args.lang }, ua, PUBLISH_TIMEOUT_MS)
   if (!result.ok) {
-    io.stderr(result.timedOut ? '서버가 30초 안에 응답하지 않았어요\n' : `서버에 연결할 수 없어요: ${args.api}\n`)
+    if (result.timedOut || result.bodyInterrupted) {
+      // 요청이 이미 서버에 도달했을 수 있다(특히 POST는 타임아웃 시점에 요청
+      // 바이트가 이미 다 나간 경우가 많다) — "발행 안 됨"이 확실한 4가 아니라
+      // "결과 불명"인 5로 알린다.
+      printPublishUnknown(io, args)
+      return 5
+    }
+    // fetch() 자체가 거부됐다(DNS 실패, ECONNREFUSED 등) — 요청이 나가지도
+    // 못했으니 "발행 안 됨"이 확실하다.
+    io.stderr(`서버에 연결할 수 없어요: ${args.api}\n`)
     return 4
   }
   const outcome = decideOutcome(result.response, 'contract')
@@ -184,10 +237,11 @@ async function runPublish(args: ParsedArgs, io: Io, ua: string): Promise<number>
       typeof body.url === 'string' &&
       typeof body.ownerUrl === 'string'
     if (!hasRequiredFields) {
-      // ok: true인데 계약이 요구하는 필드가 없다 — 성공으로 믿었다가 대시보드
-      // 링크를 잃어버리는 것보다, 원문을 보여 주고 실패로 처리하는 게 낫다.
-      io.stderr(`서버 응답이 이상해요(slug/url/ownerUrl이 없어요): ${result.response.text}\n`)
-      return 4
+      // ok: true인데 계약이 요구하는 필드가 없다 — 저장은 됐을 수도 있다
+      // (ownerUrl이 깨진 본문 안에 들어 있을 수 있다). "발행 안 됨"인 4가
+      // 아니라 "결과 불명"인 5로 알리고, 사람이 직접 볼 수 있게 원문을 싣는다.
+      printPublishUnknown(io, args, result.response.text)
+      return 5
     }
 
     if (args.json) printJson(outcome, io)

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { run, type Io } from './cli.js'
+import { run, main, type Io } from './cli.js'
 import { resolveStoreFile } from './store.js'
 
 let tmpHome: string
@@ -275,21 +275,30 @@ describe('공통', () => {
 
   it('--api가 http이면서 로컬이 아니면 2', async () => {
     const io = makeIo()
-    const code = await run(['list', '--api', 'http://example.com'], io)
+    vi.stubGlobal('fetch', vi.fn())
+    const code = await run(['guide', '--api', 'http://example.com'], io)
     expect(code).toBe(2)
     expect(io.stderrText()).toContain('https')
   })
 
   it('--api가 http://localhost면 허용한다', async () => {
     const io = makeIo()
-    const code = await run(['list', '--api', 'http://localhost:3000'], io)
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('# guide', { status: 200 })))
+    const code = await run(['guide', '--api', 'http://localhost:3000'], io)
     expect(code).toBe(0)
   })
 
   it('--api가 올바른 URL이 아니면 2', async () => {
     const io = makeIo()
-    const code = await run(['list', '--api', 'not a url'], io)
+    vi.stubGlobal('fetch', vi.fn())
+    const code = await run(['guide', '--api', 'not a url'], io)
     expect(code).toBe(2)
+  })
+
+  it('list는 잘못된 --api를 무시하고 동작한다', async () => {
+    const io = makeIo()
+    const code = await run(['list', '--api', 'not a url'], io)
+    expect(code).toBe(0)
   })
 })
 
@@ -372,14 +381,127 @@ describe('계약과 다른 응답(비정상 2xx)', () => {
     expect(parsed.error.code).toBe('bad_response')
   })
 
-  it('publish가 ok:true인데 url/ownerUrl/slug가 없으면 4, 원문을 stderr에 낸다', async () => {
+  it('publish가 ok:true인데 url/ownerUrl/slug가 없으면 5(결과 불명), 원문을 함께 낸다', async () => {
     const file = path.join(tmpDir, 'test.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(201, { ok: true })))
     const io = makeIo()
     const code = await run(['publish', file], io)
+    expect(code).toBe(5)
+    expect(io.stderrText()).toContain('발행됐을 수 있어요')
+    expect(io.stderrText()).toContain('"ok":true')
+  })
+
+  it('validate가 ok:true인데 필드가 없어도(계약이 요구하지 않으므로) 정상 0이다', async () => {
+    const file = path.join(tmpDir, 'test.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(200, { ok: true })))
+    const io = makeIo()
+    const code = await run(['validate', file], io)
+    expect(code).toBe(0)
+  })
+})
+
+describe('publish 결과 불명(exit 5)', () => {
+  // stdin('-')으로 입력을 준다 — 실제 파일을 읽으면 libuv 스레드풀을 거치는
+  // 진짜 비동기 I/O라 `vi.advanceTimersByTimeAsync`가 시작되는 시점에 아직
+  // 안 끝나 있을 수 있고, 그러면 그 뒤에 등록되는 setTimeout을 놓쳐 테스트가
+  // 영영 멈춘다(실측 확인됨). `io.readStdin`은 순수 마이크로태스크라 이 경쟁이
+  // 없다.
+  it('60초 안에 응답이 없으면 5(4가 아니다) — 이미 도달했을 수 있다', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          (_url: unknown, init?: RequestInit) =>
+            new Promise((_resolve, reject) => {
+              init?.signal?.addEventListener('abort', () =>
+                reject(new DOMException('The operation was aborted', 'AbortError')),
+              )
+            }),
+        ),
+      )
+      const io = makeIo(JSON.stringify({ kind: 'balance' }))
+      const promise = run(['publish', '-'], io)
+      await vi.advanceTimersByTimeAsync(60_000)
+      const code = await promise
+      expect(code).toBe(5)
+      expect(io.stderrText()).toContain('발행됐을 수 있어요')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('30초에서는 아직 타임아웃되지 않는다(publish는 60초)', async () => {
+    vi.useFakeTimers()
+    try {
+      let settled = false
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          (_url: unknown, init?: RequestInit) =>
+            new Promise((_resolve, reject) => {
+              init?.signal?.addEventListener('abort', () => {
+                reject(new DOMException('The operation was aborted', 'AbortError'))
+              })
+            }),
+        ),
+      )
+      const promise = run(['publish', '-'], makeIo(JSON.stringify({ kind: 'balance' }))).then((code) => {
+        settled = true
+        return code
+      })
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(settled).toBe(false)
+      await vi.advanceTimersByTimeAsync(30_000)
+      await promise
+      expect(settled).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('연결 자체가 안 되면(fetch가 즉시 던짐) 4 그대로다', async () => {
+    const file = path.join(tmpDir, 'test.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('ECONNREFUSED')
+      }),
+    )
+    const io = makeIo()
+    const code = await run(['publish', file], io)
     expect(code).toBe(4)
-    expect(io.stderrText()).toContain('ok')
+  })
+
+  it('연결은 됐지만 본문이 끊기면 5다', async () => {
+    const file = path.join(tmpDir, 'test.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        const res = new Response('irrelevant')
+        vi.spyOn(res, 'text').mockRejectedValue(new Error('ECONNRESET'))
+        return res
+      }),
+    )
+    const io = makeIo()
+    const code = await run(['publish', file], io)
+    expect(code).toBe(5)
+  })
+
+  it('--json이면 publish_unknown 코드를 담은 합성 JSON을 낸다', async () => {
+    const file = path.join(tmpDir, 'test.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(201, { ok: true })))
+    const io = makeIo()
+    const code = await run(['publish', file, '--json'], io)
+    expect(code).toBe(5)
+    const parsed = JSON.parse(io.stdoutText())
+    expect(parsed.error.code).toBe('publish_unknown')
+    expect(parsed.raw).toContain('"ok":true')
   })
 })
 
@@ -500,5 +622,45 @@ describe('동시 publish', () => {
       await fs.readFile(resolveStoreFile({ env: {} as NodeJS.ProcessEnv, homedir: () => tmpHome }), 'utf8'),
     )
     expect(stored).toHaveLength(10)
+  })
+})
+
+describe('main()은 process.exit()을 부르지 않는다', () => {
+  it('--version 경로에서 exitCode만 설정하고 process.exit은 부르지 않는다', async () => {
+    const originalArgv = process.argv
+    const originalExitCode = process.exitCode
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('process.exit()이 불렸어요 — process.exitCode만 설정해야 해요')
+    })
+    try {
+      process.argv = [process.execPath, 'letsplaytest', '--version']
+      process.exitCode = undefined
+      await main()
+      expect(exitSpy).not.toHaveBeenCalled()
+      expect(process.exitCode).toBe(0)
+    } finally {
+      process.argv = originalArgv
+      process.exitCode = originalExitCode
+      exitSpy.mockRestore()
+    }
+  })
+
+  it('사용법 오류 경로(exit 2)에서도 process.exit을 부르지 않는다', async () => {
+    const originalArgv = process.argv
+    const originalExitCode = process.exitCode
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('process.exit()이 불렸어요 — process.exitCode만 설정해야 해요')
+    })
+    try {
+      process.argv = [process.execPath, 'letsplaytest', 'dance']
+      process.exitCode = undefined
+      await main()
+      expect(exitSpy).not.toHaveBeenCalled()
+      expect(process.exitCode).toBe(2)
+    } finally {
+      process.argv = originalArgv
+      process.exitCode = originalExitCode
+      exitSpy.mockRestore()
+    }
   })
 })
