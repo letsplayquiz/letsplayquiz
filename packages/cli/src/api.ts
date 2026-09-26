@@ -90,10 +90,14 @@ export async function httpFetch(
 
 /**
  * 요청이 **확실히** 서버에 닿지 못했다고 볼 수 있는 저수준 오류 코드만 여기
- * 둔다(2026-09-26 조율자 결정) — 그 밖의 모든 `connect-failed`는 "확실하지
- * 않음"으로 다룬다. DNS·라우팅·TLS 핸드셰이크·로컬 URL 검증 오류는 TCP로 실제
- * 바이트가 오가기 전에 끝나므로 여기 들어간다. `ECONNRESET`·`UND_ERR_SOCKET`·
- * `HPE_*`처럼 연결 자체는 있었을 수 있는 오류는 일부러 뺐다.
+ * 둔다(2026-09-26 조율자 결정, 네 번째 리뷰에서 TLS·"bad port" 계열 보강) —
+ * 그 밖의 모든 `connect-failed`는 "확실하지 않음"으로 다룬다. DNS·라우팅·
+ * TLS 핸드셰이크·로컬 URL 검증 오류는 TCP로 실제 바이트가 오가기 전에
+ * 끝나므로 여기 들어간다. `ECONNRESET`·`UND_ERR_SOCKET`·`HPE_*`처럼 연결
+ * 자체는 있었을 수 있는 오류는 일부러 뺐다. `ERR_SSL_` 접두 전체를 넣지
+ * 않는 이유: 그 아래엔 핸드셰이크 **도중**(즉 어느 정도 바이트가 오간 뒤)
+ * 발생하는 오류도 섞여 있어, 확인된 두 개(버전 불일치·패킷 길이 초과 — 둘 다
+ * 첫 바이트에서 갈리는 오류)만 콕 집어 넣는다.
  */
 const DEFINITE_CONNECT_FAILURE_CODES = new Set([
   'ECONNREFUSED',
@@ -108,9 +112,17 @@ const DEFINITE_CONNECT_FAILURE_CODES = new Set([
   'ERR_TLS_CERT_ALTNAME_INVALID',
   'ERR_INVALID_URL',
   'ERR_UNSUPPORTED_ESM_URL_SCHEME',
+  'ERR_SSL_WRONG_VERSION_NUMBER',
+  'ERR_SSL_PACKET_LENGTH_TOO_LONG',
+  'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+  'UNABLE_TO_GET_ISSUER_CERT',
 ])
 
-export function isDefiniteConnectFailure(code: string | undefined): boolean {
+export function isDefiniteConnectFailure(code: string | undefined, message?: string): boolean {
+  // "bad port"는 undici가 안전하지 않다고 보는 포트(스모크·메일 포트 등)로
+  // 요청을 보내기 전에 로컬에서 거절하는 경우다 — code 없이 message로만
+  // 온다.
+  if (message === 'bad port') return true
   if (code === undefined) return false
   if (DEFINITE_CONNECT_FAILURE_CODES.has(code)) return true
   return code.startsWith('CERT_')
@@ -119,11 +131,11 @@ export function isDefiniteConnectFailure(code: string | undefined): boolean {
 /**
  * publish 전용 판정: 네트워크 실패를 4(확실히 발행 안 됨)와 5(발행됐을 수
  * 있음)로 가른다. `timeout`·`connected-then-failed`는 언제나 5다(2026-09-26
- * 조율자 결정) — `connect-failed`만 코드를 본다.
+ * 조율자 결정) — `connect-failed`만 코드/메시지를 본다.
  */
 export function classifyPublishNetworkFailure(failure: HttpFailure): 4 | 5 {
   if (failure.kind !== 'connect-failed') return 5
-  return isDefiniteConnectFailure(failure.code) ? 4 : 5
+  return isDefiniteConnectFailure(failure.code, failure.message) ? 4 : 5
 }
 
 /**
@@ -283,11 +295,16 @@ const DEFINITE_4_ERROR_CODES = new Set(['internal', 'unavailable', 'invalid_json
  * - `bad_response`(계약과 다른 응답)인데 상태가 2xx(서버는 성공했다고 믿는
  *   듯한데 본문이 계약과 다름)나 5xx(게이트웨이가 원본 서버 뒤에서 끊겼을
  *   수 있음)면 5로 올린다. 원문(5xx는 2KB로 자름)을 함께 돌려준다.
- * - 계약대로 온 `{ ok: false, error: { code } }`인데 `code`가
- *   `DEFINITE_4_ERROR_CODES`에 없으면(서버가 결과 불명을 스스로 알리는
- *   `publish_unknown` 포함, 모르는 새 코드도 포함) 5로 올린다.
+ * - 계약대로 온 `{ ok: false, error: { code } }`이고 상태가 **4xx**면
+ *   `code`가 무엇이든(모르는 코드라도) 그대로 4다(2026-09-26 네 번째 리뷰,
+ *   codex 지적) — 4xx는 서버가 요청 자체를 거절했다는 뜻이라 저장까지 갔을
+ *   여지가 없다. (`validation_failed`·`rate_limited`는 이 분기에 오지 않는다
+ *   — `decideOutcome`이 이미 1/3로 따로 뺐다.)
+ * - 상태가 **5xx**이고 `code`가 `DEFINITE_4_ERROR_CODES`에 없으면(서버가
+ *   결과 불명을 스스로 알리는 `publish_unknown` 포함, 모르는 새 코드도
+ *   포함) 5로 올린다 — 게이트웨이 뒤에서 무슨 일이 있었는지 알 수 없다.
  * - 그 밖의 4(`internal`·`unavailable`·`invalid_json`·`payload_too_large`·
- *   `unsupported_media_type`, 4xx `bad_response`)는 그대로 4다.
+ *   `unsupported_media_type`, 4xx 전부)는 그대로 4다.
  */
 export function derivePublishExitCode(outcome: Outcome, response: HttpResponse): { exitCode: ExitCode; raw?: string } {
   if (outcome.exitCode !== 4) return { exitCode: outcome.exitCode }
@@ -300,7 +317,7 @@ export function derivePublishExitCode(outcome: Outcome, response: HttpResponse):
   }
 
   const code = outcomeErrorCode(outcome)
-  if (code !== undefined && !DEFINITE_4_ERROR_CODES.has(code)) {
+  if (code !== undefined && response.status >= 500 && !DEFINITE_4_ERROR_CODES.has(code)) {
     return { exitCode: 5, raw: response.text }
   }
 
@@ -308,28 +325,59 @@ export function derivePublishExitCode(outcome: Outcome, response: HttpResponse):
 }
 
 export interface ExtractedLinks {
-  slug?: string
-  url?: string
-  ownerUrl?: string
+  slug: string
+  url: string
+  ownerUrl: string
 }
 
-/** 종료 코드 5(결과 불명)로 끝날 때, 원문 응답 안에서 그래도 JSON으로 읽히는
- * 부분이 있으면 `slug`/`url`/`ownerUrl`을 뽑아 본다 — 발행이 실제로는 성공해서
- * `ownerUrl`이 본문 어딘가에 들어 있었을 수 있고, 그러면 그 링크를 잃지 않고
- * "확인 필요"로 기록해 둘 수 있다. 파싱이 안 되면(HTML 오류 페이지 등) 조용히
- * 빈 값을 돌려준다. */
-export function tryExtractLinks(text: string): ExtractedLinks {
+function isHttpUrl(value: string): URL | undefined {
   try {
-    const parsed: unknown = JSON.parse(text)
-    if (!isRecord(parsed)) return {}
-    return {
-      slug: typeof parsed.slug === 'string' ? parsed.slug : undefined,
-      url: typeof parsed.url === 'string' ? parsed.url : undefined,
-      ownerUrl: typeof parsed.ownerUrl === 'string' ? parsed.ownerUrl : undefined,
-    }
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url : undefined
   } catch {
-    return {}
+    return undefined
   }
+}
+
+/**
+ * 종료 코드 5(결과 불명)로 끝날 때, 원문 응답 안에서 그래도 링크를 뽑아 낼 수
+ * 있는지 본다 — 발행이 실제로는 성공해서 `ownerUrl`이 본문에 들어 있었을 수
+ * 있고, 그러면 그 링크를 잃지 않고 "확인 필요"로 기록해 둘 수 있다.
+ *
+ * 502 오류 본문처럼 아무 JSON이나 뽑아 저장하면 엉뚱한 링크를 창작자 것으로
+ * 오인할 수 있어(2026-09-26 네 번째 리뷰 — 조율자 결정: origin 일치까지는
+ * 강제하지 않되, 아래 조건은 전부 만족해야 한다), 저장 조건을 좁게 잡는다:
+ * - 상태가 2xx일 것(서버가 성공으로 여겼다는 최소한의 신호)
+ * - 본문이 JSON이고 `ok === true`일 것(스펙 §4.4 성공 응답의 첫 조건)
+ * - `url`·`ownerUrl`이 `new URL()`로 파싱되는 `http`/`https`일 것
+ * - `url`의 경로에 `slug` 문자열이 실제로 들어 있을 것(서로 무관한 두 값이
+ *   우연히 같이 온 게 아니라는 최소한의 일관성 확인)
+ *
+ * 하나라도 어긋나면(HTML 오류 페이지, `ok: false`, 4xx/5xx, 이상한 URL 등)
+ * 조용히 `undefined`를 돌려준다 — 저장을 건너뛴다는 뜻이다.
+ */
+export function tryExtractLinks(text: string, status: number): ExtractedLinks | undefined {
+  if (status < 200 || status >= 300) return undefined
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    return undefined
+  }
+  if (!isRecord(parsed) || parsed.ok !== true) return undefined
+
+  const slug = typeof parsed.slug === 'string' ? parsed.slug : undefined
+  const url = typeof parsed.url === 'string' ? parsed.url : undefined
+  const ownerUrl = typeof parsed.ownerUrl === 'string' ? parsed.ownerUrl : undefined
+  if (slug === undefined || url === undefined || ownerUrl === undefined) return undefined
+
+  const urlObj = isHttpUrl(url)
+  const ownerUrlObj = isHttpUrl(ownerUrl)
+  if (!urlObj || !ownerUrlObj) return undefined
+  if (!urlObj.pathname.includes(slug)) return undefined
+
+  return { slug, url, ownerUrl }
 }
 
 /** `--json` 출력에 `retryAfterSeconds`를 덧붙인다(429/503일 때만 값이 있다).

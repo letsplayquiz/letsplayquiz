@@ -285,6 +285,50 @@ describe('list 명령', () => {
     expect(code).toBe(0)
     expect(io.stdoutText()).toContain('짜장 vs 짬뽕')
   })
+
+  it('unconfirmed 레코드는 "(확인 필요)"로 표시된다', async () => {
+    const configDir = path.join(tmpHome, '.config', 'letsplaytest')
+    await fs.mkdir(configDir, { recursive: true })
+    const unconfirmedRecord = {
+      slug: 'ab12cd34',
+      title: '확인이 필요한 테스트',
+      kind: 'balance',
+      url: 'https://letsplaytest.com/t/ab12cd34',
+      ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
+      api: 'https://letsplaytest.com',
+      publishedAt: '2026-09-26T00:00:00.000Z',
+      unconfirmed: true,
+    }
+    await fs.writeFile(path.join(configDir, 'tests.jsonl'), `\n${JSON.stringify(unconfirmedRecord)}\n`)
+
+    const io = makeIo()
+    const code = await run(['list'], io)
+    expect(code).toBe(0)
+    expect(io.stdoutText()).toContain('확인이 필요한 테스트')
+    expect(io.stdoutText()).toContain('(확인 필요)')
+  })
+
+  it('--json에는 unconfirmed 필드가 그대로 실린다(마크 문자열이 아니라)', async () => {
+    const configDir = path.join(tmpHome, '.config', 'letsplaytest')
+    await fs.mkdir(configDir, { recursive: true })
+    const unconfirmedRecord = {
+      slug: 'ab12cd34',
+      title: '확인이 필요한 테스트',
+      kind: 'balance',
+      url: 'https://letsplaytest.com/t/ab12cd34',
+      ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
+      api: 'https://letsplaytest.com',
+      publishedAt: '2026-09-26T00:00:00.000Z',
+      unconfirmed: true,
+    }
+    await fs.writeFile(path.join(configDir, 'tests.jsonl'), `${JSON.stringify(unconfirmedRecord)}\n`)
+
+    const io = makeIo()
+    const code = await run(['list', '--json'], io)
+    expect(code).toBe(0)
+    const parsed = JSON.parse(io.stdoutText())
+    expect(parsed[0]).toMatchObject({ unconfirmed: true })
+  })
 })
 
 describe('공통', () => {
@@ -541,12 +585,11 @@ describe('publish 결과 불명(exit 5)', () => {
     expect(parsed.raw).toContain('"ok":true')
   })
 
-  it('원문에서 slug/url/ownerUrl을 뽑을 수 있으면 unconfirmed 레코드로 저장한다', async () => {
+  it('필드가 일부만 있으면(ownerUrl 없음) 뽑지 못해 저장하지 않는다', async () => {
     const file = path.join(tmpDir, 'test.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance', title: '짜장 vs 짬뽕' }))
-    // ok: true인데 서버가 다른 필드도 없이 body 전체가 이상한 경우를 흉내:
-    // slug/url/ownerUrl은 있지만 우리 계약과 완전히 일치하진 않는다고 가정해도
-    // 뽑을 수 있는 값이 있으면 기록해 둔다.
+    // ok: true인데 ownerUrl이 없다 — hasRequiredFields가 실패해 5(결과 불명)
+    // 경로로 들어가지만, tryExtractLinks도 세 필드가 다 있어야 하므로 못 뽑는다.
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse(201, { ok: true, slug: 'ab12cd34', url: 'https://letsplaytest.com/t/ab12cd34' })),
@@ -554,17 +597,16 @@ describe('publish 결과 불명(exit 5)', () => {
     const io = makeIo()
     const code = await run(['publish', file], io)
     expect(code).toBe(5)
-    // ownerUrl이 없으므로 canSave 조건(세 필드 모두)을 못 채워 저장은 안 된다 —
-    // 이 케이스는 "일부만 뽑힘"을 확인하는 용도다.
     expect(await storeFileExists()).toBe(false)
   })
 
-  it('slug/url/ownerUrl을 모두 뽑을 수 있으면 unconfirmed: true로 저장하고 안내한다', async () => {
+  it('ok 필드가 없는(계약 위반) 502류 응답은 링크가 들어 있어도 저장하지 않는다', async () => {
+    // `ok: true`가 아니면(여기서는 필드 자체가 없다) tryExtractLinks가 절대
+    // 뽑지 않는다(2026-09-26 네 번째 리뷰 — 조율자 결정: 오류 응답 안의 링크를
+    // 창작자 것으로 오인해 저장하지 않도록 조건을 좁혔다). 상태는 200이라
+    // derivePublishExitCode가 bad_response를 5로 올리지만, 저장까지는 안 된다.
     const file = path.join(tmpDir, 'test.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance', title: '짜장 vs 짬뽕' }))
-    // `ok` 필드가 없어서(계약 위반) decideOutcome이 bad_response로 4를 내지만,
-    // 상태가 200(ambiguous)이라 derivePublishExitCode가 5로 올린다. 그 와중에
-    // slug/url/ownerUrl은 다 들어 있어서 뽑아낼 수 있다.
     const raw = JSON.stringify({
       slug: 'ab12cd34',
       url: 'https://letsplaytest.com/t/ab12cd34',
@@ -574,10 +616,7 @@ describe('publish 결과 불명(exit 5)', () => {
     const io = makeIo()
     const code = await run(['publish', file], io)
     expect(code).toBe(5)
-    expect(io.stderrText()).toContain('list')
-    const stored = await readStoredRecords()
-    expect(stored).toHaveLength(1)
-    expect(stored[0]).toMatchObject({ slug: 'ab12cd34', unconfirmed: true })
+    expect(await storeFileExists()).toBe(false)
   })
 
   it('--no-save면 뽑은 링크가 있어도 저장하지 않는다', async () => {

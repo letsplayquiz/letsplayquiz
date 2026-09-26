@@ -98,14 +98,22 @@ const PUBLISH_UNKNOWN_MESSAGE = '발행됐을 수 있어요. 다시 publish하�
  * 에이전트가 무작정 재시도로 중복 발행을 만들지 않게 한다(스펙 §7.4,
  * 2026-09-26 조율자 결정).
  *
- * `raw`가 있으면 그 안에서 JSON으로 `slug`/`url`/`ownerUrl`을 뽑아 본다 —
- * 뽑히면 발행이 실제로는 성공했을 가능성이 있다는 뜻이라, 그 링크를
- * `unconfirmed: true`로 기록해 둔다(사람이 다시 확인할 수 있게). `list`로
- * 확인하라는 안내는 실제로 뭔가 기록됐을 때만 붙인다.
+ * `raw`와 `status`가 둘 다 있으면 `tryExtractLinks`로 `slug`/`url`/`ownerUrl`을
+ * 뽑아 본다(조건은 `tryExtractLinks` 문서 참고 — 2xx + `ok:true` + 유효한
+ * http(s) URL + `url` 경로에 `slug` 포함). 뽑히면 발행이 실제로는 성공했을
+ * 가능성이 있다는 뜻이라, 그 링크를 `unconfirmed: true`로 기록해 둔다(사람이
+ * 다시 확인할 수 있게). `list`로 확인하라는 안내는 실제로 뭔가 기록됐을
+ * 때만 붙인다. 네트워크 실패(타임아웃 등)처럼 응답 자체가 없을 땐 `raw`·
+ * `status`를 안 넘긴다 — 뽑을 게 없다.
  */
-async function handlePublishUnknown(io: Io, args: ParsedArgs, inputData: unknown, raw?: string): Promise<void> {
-  const extracted = raw !== undefined ? tryExtractLinks(raw) : {}
-  const canSave = extracted.slug !== undefined && extracted.url !== undefined && extracted.ownerUrl !== undefined
+async function handlePublishUnknown(
+  io: Io,
+  args: ParsedArgs,
+  inputData: unknown,
+  raw?: string,
+  status?: number,
+): Promise<void> {
+  const extracted = raw !== undefined && status !== undefined ? tryExtractLinks(raw, status) : undefined
 
   if (args.json) {
     const body: Record<string, unknown> = {
@@ -116,21 +124,21 @@ async function handlePublishUnknown(io: Io, args: ParsedArgs, inputData: unknown
     io.stdout(`${JSON.stringify(body)}\n`)
   } else {
     io.stderr(`${PUBLISH_UNKNOWN_MESSAGE}\n`)
-    if (canSave) {
+    if (extracted) {
       io.stderr(`뽑아낸 링크 — url: ${extracted.url}\nownerUrl: ${extracted.ownerUrl}\n`)
     }
     if (raw !== undefined) io.stderr(`원본 응답: ${raw}\n`)
   }
 
-  if (canSave && !args.noSave) {
+  if (extracted && !args.noSave) {
     const title = isRecord(inputData) && typeof inputData.title === 'string' ? inputData.title : ''
     const kind = isRecord(inputData) && typeof inputData.kind === 'string' ? inputData.kind : ''
     const saveResult = await saveRecord(storeIo(io), {
-      slug: extracted.slug as string,
+      slug: extracted.slug,
       title,
       kind,
-      url: extracted.url as string,
-      ownerUrl: extracted.ownerUrl as string,
+      url: extracted.url,
+      ownerUrl: extracted.ownerUrl,
       api: args.api,
       publishedAt: new Date().toISOString(),
       unconfirmed: true,
@@ -275,7 +283,7 @@ async function runPublish(args: ParsedArgs, io: Io, ua: string): Promise<number>
       // ok: true인데 계약이 요구하는 필드가 없다 — 저장은 됐을 수도 있다
       // (ownerUrl이 깨진 본문 안에 들어 있을 수 있다). "발행 안 됨"인 4가
       // 아니라 "결과 불명"인 5로 알리고, 뽑을 수 있으면 링크를 기록해 둔다.
-      await handlePublishUnknown(io, args, data, result.response.text)
+      await handlePublishUnknown(io, args, data, result.response.text, result.response.status)
       return 5
     }
 
@@ -312,7 +320,7 @@ async function runPublish(args: ParsedArgs, io: Io, ua: string): Promise<number>
   // 아니라 5다 — decideOutcome은 이 맥락을 모르므로 여기서 한 번 더 거른다.
   const derived = derivePublishExitCode(outcome, result.response)
   if (derived.exitCode === 5) {
-    await handlePublishUnknown(io, args, data, derived.raw)
+    await handlePublishUnknown(io, args, data, derived.raw, result.response.status)
     return 5
   }
 

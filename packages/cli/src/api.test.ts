@@ -218,6 +218,20 @@ describe('derivePublishExitCode', () => {
     expect(derived.exitCode).toBe(5)
   })
 
+  it('4xx JSON 오류는 코드와 상관없이 4다(서버가 거절 = 저장 안 됨)', () => {
+    for (const [status, code] of [
+      [403, 'forbidden'],
+      [409, 'conflict'],
+      [404, 'not_found'],
+      [400, 'some_unknown_code'],
+    ] as const) {
+      const body = { ok: false, error: { code, message: 'm' } }
+      const response = makeHttpResponse(status, JSON.stringify(body))
+      const outcome = decideOutcome(response, 'contract')
+      expect(derivePublishExitCode(outcome, response).exitCode).toBe(4)
+    }
+  })
+
   it('validation_failed(1)·rate_limited(3)는 건드리지 않는다', () => {
     const validationBody = { ok: false, error: { code: 'validation_failed', message: 'm' }, blockers: [] }
     const validationResponse = makeHttpResponse(400, JSON.stringify(validationBody))
@@ -272,27 +286,98 @@ describe('isDefiniteConnectFailure / classifyPublishNetworkFailure', () => {
     expect(classifyPublishNetworkFailure({ kind: 'connect-failed', code: 'ECONNRESET' })).toBe(5)
     expect(classifyPublishNetworkFailure({ kind: 'connect-failed', code: undefined })).toBe(5)
   })
+
+  it('TLS 핸드셰이크 첫 바이트에서 갈리는 오류·인증서 체인 오류도 확실한 실패다(네 번째 리뷰 보강)', () => {
+    for (const code of [
+      'ERR_SSL_WRONG_VERSION_NUMBER',
+      'ERR_SSL_PACKET_LENGTH_TOO_LONG',
+      'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+      'UNABLE_TO_GET_ISSUER_CERT',
+    ]) {
+      expect(isDefiniteConnectFailure(code)).toBe(true)
+    }
+  })
+
+  it('ERR_SSL_ 접두 전체를 허용 목록에 넣지 않는다(핸드셰이크 도중 오류가 섞여 있어서)', () => {
+    expect(isDefiniteConnectFailure('ERR_SSL_SOME_OTHER_UNLISTED_ERROR')).toBe(false)
+  })
+
+  it("cause.message가 'bad port'면 코드 없이도 확실한 실패다", () => {
+    expect(isDefiniteConnectFailure(undefined, 'bad port')).toBe(true)
+    expect(classifyPublishNetworkFailure({ kind: 'connect-failed', code: undefined, message: 'bad port' })).toBe(4)
+  })
 })
 
 describe('tryExtractLinks', () => {
-  it('JSON이면 slug/url/ownerUrl을 뽑는다', () => {
-    expect(tryExtractLinks(JSON.stringify({ slug: 'a', url: 'u', ownerUrl: 'o', extra: 1 }))).toEqual({
-      slug: 'a',
-      url: 'u',
-      ownerUrl: 'o',
+  const goodBody = () =>
+    JSON.stringify({
+      ok: true,
+      slug: 'ab12cd34',
+      url: 'https://letsplaytest.com/t/ab12cd34',
+      ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
     })
+
+  it('2xx + ok:true + 유효한 http(s) URL + url 경로에 slug 포함 → 뽑는다', () => {
+    expect(tryExtractLinks(goodBody(), 200)).toEqual({
+      slug: 'ab12cd34',
+      url: 'https://letsplaytest.com/t/ab12cd34',
+      ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
+    })
+    expect(tryExtractLinks(goodBody(), 201)).toBeDefined()
+    expect(tryExtractLinks(goodBody(), 299)).toBeDefined()
   })
 
-  it('일부만 있어도 있는 것만 뽑는다', () => {
-    expect(tryExtractLinks(JSON.stringify({ ownerUrl: 'o' }))).toEqual({ ownerUrl: 'o' })
+  it('상태가 2xx가 아니면(502 오류 본문 등) 안 뽑는다', () => {
+    expect(tryExtractLinks(goodBody(), 502)).toBeUndefined()
+    expect(tryExtractLinks(goodBody(), 400)).toBeUndefined()
+    expect(tryExtractLinks(goodBody(), 199)).toBeUndefined()
+  })
+
+  it('ok가 true가 아니면 안 뽑는다', () => {
+    const body = JSON.stringify({
+      ok: false,
+      slug: 'ab12cd34',
+      url: 'https://letsplaytest.com/t/ab12cd34',
+      ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
+    })
+    expect(tryExtractLinks(body, 200)).toBeUndefined()
+  })
+
+  it('필드가 하나라도 없으면 안 뽑는다', () => {
+    expect(tryExtractLinks(JSON.stringify({ ok: true, url: 'https://x.example/t/a' }), 200)).toBeUndefined()
+  })
+
+  it('url/ownerUrl이 http(s)가 아니면(javascript: 등) 안 뽑는다', () => {
+    const body = JSON.stringify({
+      ok: true,
+      slug: 'a',
+      url: 'javascript:alert(1)',
+      ownerUrl: 'https://letsplaytest.com/t/a/owner/tok',
+    })
+    expect(tryExtractLinks(body, 200)).toBeUndefined()
+  })
+
+  it('url/ownerUrl이 파싱 안 되는 문자열이면 안 뽑는다', () => {
+    const body = JSON.stringify({ ok: true, slug: 'a', url: 'not a url', ownerUrl: 'also not a url' })
+    expect(tryExtractLinks(body, 200)).toBeUndefined()
+  })
+
+  it('url 경로에 slug가 없으면 안 뽑는다(서로 무관한 값일 수 있다)', () => {
+    const body = JSON.stringify({
+      ok: true,
+      slug: 'ab12cd34',
+      url: 'https://letsplaytest.com/t/completely-different-slug',
+      ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
+    })
+    expect(tryExtractLinks(body, 200)).toBeUndefined()
   })
 
   it('JSON이 아니면 빈 값', () => {
-    expect(tryExtractLinks('<html>bad</html>')).toEqual({})
+    expect(tryExtractLinks('<html>bad</html>', 200)).toBeUndefined()
   })
 
   it('JSON 배열이면 빈 값', () => {
-    expect(tryExtractLinks('[1,2,3]')).toEqual({})
+    expect(tryExtractLinks('[1,2,3]', 200)).toBeUndefined()
   })
 })
 
@@ -454,6 +539,25 @@ describe('httpFetch — 실제 net/http 서버', () => {
       expect(result.failure.kind).toBe('connect-failed')
       expect(result.failure.kind === 'connect-failed' && result.failure.code).toBe('ECONNREFUSED')
       expect(classifyPublishNetworkFailure(result.failure)).toBe(4)
+    }
+  })
+
+  it('https로 평문 http 서버에 접속하면(TLS 핸드셰이크 실패) connect-failed + 확실한 실패(4)', async () => {
+    // 평문 HTTP 서버를 열어 두고 https://로 접속한다 — TLS 클라이언트가 서버
+    // 인사(ServerHello)를 기대하다가 평문 HTTP 바이트를 받으면 보통
+    // ERR_SSL_WRONG_VERSION_NUMBER류로 즉시 실패한다(2026-09-26 네 번째 리뷰,
+    // 실측 요구 항목).
+    const server = http.createServer((_req, res) => res.end('plain http'))
+    const port = await listen(server)
+    try {
+      const result = await httpFetch(`https://127.0.0.1:${port}/`, {})
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.failure.kind).toBe('connect-failed')
+        expect(classifyPublishNetworkFailure(result.failure)).toBe(4)
+      }
+    } finally {
+      await close(server)
     }
   })
 

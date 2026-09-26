@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { promises as fs, mkdirSync, chmodSync, symlinkSync, writeFileSync } from 'node:fs'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { promises as fs, promises as fsPromises, mkdirSync, chmodSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { saveRecord, loadRecords, resolveStoreFile, resolveConfigDir, type StoreIo, type TestRecord } from './store.js'
@@ -43,14 +43,14 @@ describe('resolveConfigDir / resolveStoreFile', () => {
 })
 
 describe('saveRecord', () => {
-  it('발행 성공 시 파일이 생기고 권한이 600/700이 된다', async () => {
+  it('발행 성공 시 파일이 생기고(앞뒤 개행 포함) 권한이 600/700이 된다', async () => {
     const result = await saveRecord(io(), record)
     expect(result.warning).toBeUndefined()
 
     const file = resolveStoreFile(io())
     const dir = resolveConfigDir(io())
     const raw = await fs.readFile(file, 'utf8')
-    expect(raw).toBe(`${JSON.stringify(record)}\n`)
+    expect(raw).toBe(`\n${JSON.stringify(record)}\n`)
 
     if (!isWindows) {
       const fileMode = (await fs.stat(file)).mode & 0o777
@@ -107,11 +107,23 @@ describe('saveRecord', () => {
     expect(entries).toEqual([])
   })
 
-  it('기록 파일이 다른 사용자 소유면 쓰지 않는다(uid 다르면) — 여기서는 함수가 존재하는지만 형태로 확인', async () => {
-    // 실제로 다른 uid를 만들 수는 없으니, isUnsafe 경로 자체는 심볼릭 링크
-    // 테스트로 충분히 덮는다. 이 테스트는 정상 경로(내 uid 소유)에서 통과하는지만 본다.
-    const result = await saveRecord(io(), record)
-    expect(result.warning).toBeUndefined()
+  it('기록 파일이 다른 사용자 소유면 실제로 쓰기를 거부한다(uid를 다르게 stub)', async () => {
+    if (isWindows || typeof process.getuid !== 'function') return
+    const dir = resolveConfigDir(io())
+    mkdirSync(dir, { recursive: true })
+    const file = resolveStoreFile(io())
+    writeFileSync(file, '') // 지금은 내 uid 소유
+
+    const myUid = process.getuid()
+    const spy = vi.spyOn(process, 'getuid').mockReturnValue(myUid + 1) // "다른 사용자"인 척
+    try {
+      const result = await saveRecord(io(), record)
+      expect(result.warning).toBeDefined()
+      const content = await fs.readFile(file, 'utf8')
+      expect(content).toBe('') // 실제로 안 쓰였다
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   it('여러 번 저장하면 한 줄씩 누적된다(append)', async () => {
@@ -129,6 +141,48 @@ describe('saveRecord', () => {
     const badIo = io({ XDG_CONFIG_HOME: blockerFile })
     const result = await saveRecord(badIo, record)
     expect(result.warning).toBeDefined()
+  })
+
+  it('앞에 개행이 없는(잘린) 파일에 이어 붙여도 기존·새 기록 모두 읽힌다', async () => {
+    const dir = resolveConfigDir(io())
+    await fs.mkdir(dir, { recursive: true })
+    const file = resolveStoreFile(io())
+    // 개행 없이 끝난 파일(수동 편집이나 예전 short write를 흉내).
+    await fs.writeFile(file, JSON.stringify(record))
+
+    const result = await saveRecord(io(), { ...record, slug: 'second' })
+    expect(result.warning).toBeUndefined()
+
+    const { records, warning } = await loadRecords(io())
+    expect(warning).toBeUndefined()
+    expect(records.map((r) => r.slug)).toEqual(['abc123', 'second'])
+  })
+
+  it('write()가 일부만 쓰였다고 보고되면(short write) 경고한다', async () => {
+    const dir = resolveConfigDir(io())
+    await fs.mkdir(dir, { recursive: true })
+
+    const openSpy = vi.spyOn(fsPromises, 'open')
+    openSpy.mockImplementationOnce(async (...args: Parameters<typeof fsPromises.open>) => {
+      openSpy.mockRestore() // 이후 호출(그리고 실제 핸들을 여는 아래 호출)은 원래 동작으로.
+      const handle = await fsPromises.open(...args)
+      const originalWrite = handle.write.bind(handle)
+      vi.spyOn(handle, 'write').mockImplementationOnce(async (data: unknown) => {
+        // 실제로는 파일에 전부 쓰지만(그래서 파일 내용 자체는 온전하다), 커널이
+        // 절반만 썼다고 보고하는 상황(디스크 공간 부족 직전 등)을 흉내 낸다.
+        const full = await originalWrite(data as string)
+        return { ...full, bytesWritten: Math.floor(full.bytesWritten / 2) }
+      })
+      return handle
+    })
+
+    try {
+      const result = await saveRecord(io(), record)
+      expect(result.warning).toBeDefined()
+      expect(result.warning).toContain('일부만')
+    } finally {
+      openSpy.mockRestore()
+    }
   })
 
   it('title이 아주 길어 4000바이트를 넘으면 title을 잘라서라도 한 줄에 담는다', async () => {
@@ -153,6 +207,15 @@ describe('saveRecord', () => {
 
     const { records } = await loadRecords(io())
     expect(records).toHaveLength(0)
+  })
+
+  it('아주 긴 title(10만 자)도 100ms 안에 처리한다(한 글자씩 지우는 루프가 미리 잘라 둔 덕분)', async () => {
+    const hugeTitleRecord: TestRecord = { ...record, title: 'a'.repeat(100_000) }
+    const start = Date.now()
+    const result = await saveRecord(io(), hugeTitleRecord)
+    const elapsed = Date.now() - start
+    expect(result.warning).toBeUndefined()
+    expect(elapsed).toBeLessThan(100)
   })
 
   it('병렬로 60번 저장해도 60줄 모두 파싱 가능하고 깨진 줄이 없다', async () => {
@@ -196,5 +259,31 @@ describe('loadRecords', () => {
     await fs.writeFile(resolveStoreFile(io()), `${JSON.stringify(rec)}\n`)
     const result = await loadRecords(io())
     expect(result.records).toEqual([rec])
+  })
+
+  it('디렉터리가 심볼릭 링크면 경고를 돌려준다', async () => {
+    if (isWindows) return
+    const realDir = path.join(tmpHome, 'real-config')
+    await fs.mkdir(realDir, { recursive: true })
+    const configBase = path.join(tmpHome, '.config')
+    await fs.mkdir(configBase, { recursive: true })
+    symlinkSync(realDir, path.join(configBase, 'letsplaytest'))
+
+    const result = await loadRecords(io())
+    expect(result.records).toEqual([])
+    expect(result.warning).toBeDefined()
+  })
+
+  it('파일이 심볼릭 링크면 경고를 돌려준다', async () => {
+    if (isWindows) return
+    const dir = resolveConfigDir(io())
+    mkdirSync(dir, { recursive: true })
+    const elsewhere = path.join(tmpHome, 'elsewhere.jsonl')
+    writeFileSync(elsewhere, `${JSON.stringify(record)}\n`)
+    symlinkSync(elsewhere, resolveStoreFile(io()))
+
+    const result = await loadRecords(io())
+    expect(result.records).toEqual([])
+    expect(result.warning).toBeDefined()
   })
 })
