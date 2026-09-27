@@ -24,9 +24,9 @@ const record: TestRecord = {
   slug: 'abc123',
   title: '나의 여행 스타일',
   kind: 'type',
-  url: 'https://letsplaytest.com/t/abc123',
-  ownerUrl: 'https://letsplaytest.com/t/abc123/owner/tok',
-  api: 'https://letsplaytest.com',
+  url: 'https://letsplayquiz.net/t/abc123',
+  ownerUrl: 'https://letsplayquiz.net/t/abc123/owner/tok',
+  api: 'https://letsplayquiz.net',
   publishedAt: '2026-09-26T00:00:00.000Z',
 }
 
@@ -200,7 +200,7 @@ describe('saveRecord', () => {
   })
 
   it('title을 다 잘라내도 4000바이트를 넘으면 저장을 건너뛰고 경고한다', async () => {
-    const impossible: TestRecord = { ...record, title: '', url: `https://letsplaytest.com/t/${'x'.repeat(5000)}` }
+    const impossible: TestRecord = { ...record, title: '', url: `https://letsplayquiz.net/t/${'x'.repeat(5000)}` }
     const result = await saveRecord(io(), impossible)
     expect(result.warning).toBeDefined()
     expect(result.warning).toContain('4000')

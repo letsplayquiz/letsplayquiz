@@ -1,6 +1,6 @@
 # letsplaytest
 
-AI 에이전트가 [PlayTest](https://letsplaytest.com) 테스트(점수형·유형형·밸런스·월드컵)를 만들고
+AI 에이전트가 [PlayTest](https://letsplayquiz.net) 테스트(점수형·유형형·밸런스·월드컵)를 만들고
 발행하는 CLI입니다. 설치 없이 `npx`로 바로 씁니다.
 
 ## 시작하기
@@ -31,7 +31,7 @@ npx letsplaytest guide --kind balance
 |---|---|
 | `--json` | 서버 응답(또는 `list`의 기록)을 그대로 출력한다 |
 | `--lang ko\|ja\|en` | 서버 메시지 언어(쿼리 `lang`). 지금은 항상 한국어 메시지가 온다 |
-| `--api <url>` | 서버 주소. `https`만 허용한다(로컬 개발은 `http://localhost`, `http://127.0.0.1` 예외 — 그 밖의 `http`는 대시보드 링크가 평문으로 오갈 수 있어 거절한다). 환경변수 `LETSPLAYTEST_API`로도 설정한다(플래그가 우선). 기본값 `https://letsplaytest.com` |
+| `--api <url>` | 서버 주소. `https`만 허용한다(로컬 개발은 `http://localhost`, `http://127.0.0.1` 예외 — 그 밖의 `http`는 대시보드 링크가 평문으로 오갈 수 있어 거절한다). 환경변수 `LETSPLAYTEST_API`로도 설정한다(플래그가 우선). 기본값 `https://letsplayquiz.net` |
 | `--no-save` | `publish` 결과를 기록 파일에 남기지 않는다 |
 | `--help` | 도움말 출력 |
 | `--version` | 버전 출력 |

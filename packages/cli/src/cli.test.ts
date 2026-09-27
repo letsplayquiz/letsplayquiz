@@ -134,8 +134,8 @@ describe('publish 명령', () => {
     const body = {
       ok: true,
       slug: 'ab12cd34',
-      url: 'https://letsplaytest.com/t/ab12cd34',
-      ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
+      url: 'https://letsplayquiz.net/t/ab12cd34',
+      ownerUrl: 'https://letsplayquiz.net/t/ab12cd34/owner/tok',
       warnings: [],
     }
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(201, body)))
@@ -153,8 +153,8 @@ describe('publish 명령', () => {
     const body = {
       ok: true,
       slug: 'ab12cd34',
-      url: 'https://letsplaytest.com/t/ab12cd34',
-      ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
+      url: 'https://letsplayquiz.net/t/ab12cd34',
+      ownerUrl: 'https://letsplayquiz.net/t/ab12cd34/owner/tok',
       warnings: [],
     }
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(201, body)))
@@ -171,8 +171,8 @@ describe('publish 명령', () => {
     const body = {
       ok: true,
       slug: 'ab12cd34',
-      url: 'https://letsplaytest.com/t/ab12cd34',
-      ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
+      url: 'https://letsplayquiz.net/t/ab12cd34',
+      ownerUrl: 'https://letsplayquiz.net/t/ab12cd34/owner/tok',
       warnings: [],
     }
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(201, body)))
@@ -272,8 +272,8 @@ describe('list 명령', () => {
     const body = {
       ok: true,
       slug: 'ab12cd34',
-      url: 'https://letsplaytest.com/t/ab12cd34',
-      ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
+      url: 'https://letsplayquiz.net/t/ab12cd34',
+      ownerUrl: 'https://letsplayquiz.net/t/ab12cd34/owner/tok',
       warnings: [],
     }
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(201, body)))
@@ -297,9 +297,9 @@ describe('list 명령', () => {
       slug: 'ab12cd34',
       title: '예전 버전 기록',
       kind: 'balance',
-      url: 'https://letsplaytest.com/t/ab12cd34',
-      ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
-      api: 'https://letsplaytest.com',
+      url: 'https://letsplayquiz.net/t/ab12cd34',
+      ownerUrl: 'https://letsplayquiz.net/t/ab12cd34/owner/tok',
+      api: 'https://letsplayquiz.net',
       publishedAt: '2026-09-26T00:00:00.000Z',
       unconfirmed: true,
     }
@@ -576,7 +576,7 @@ describe('publish 결과 불명(exit 5)', () => {
     // 리뷰) 5는 항상 기록을 남기지 않는다.
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => jsonResponse(201, { ok: true, slug: 'ab12cd34', url: 'https://letsplaytest.com/t/ab12cd34' })),
+      vi.fn(async () => jsonResponse(201, { ok: true, slug: 'ab12cd34', url: 'https://letsplayquiz.net/t/ab12cd34' })),
     )
     const io = makeIo()
     const code = await run(['publish', file], io)
@@ -589,8 +589,8 @@ describe('publish 결과 불명(exit 5)', () => {
     await fs.writeFile(file, JSON.stringify({ kind: 'balance', title: '짜장 vs 짬뽕' }))
     const raw = JSON.stringify({
       slug: 'ab12cd34',
-      url: 'https://letsplaytest.com/t/ab12cd34',
-      ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
+      url: 'https://letsplayquiz.net/t/ab12cd34',
+      ownerUrl: 'https://letsplayquiz.net/t/ab12cd34/owner/tok',
     })
     vi.stubGlobal('fetch', vi.fn(async () => new Response(raw, { status: 200 })))
     const io = makeIo()
@@ -691,9 +691,9 @@ describe('list의 손상된 기록 파일', () => {
       slug: 'abc',
       title: '좋은 기록',
       kind: 'balance',
-      url: 'https://letsplaytest.com/t/abc',
-      ownerUrl: 'https://letsplaytest.com/t/abc/owner/tok',
-      api: 'https://letsplaytest.com',
+      url: 'https://letsplayquiz.net/t/abc',
+      ownerUrl: 'https://letsplayquiz.net/t/abc/owner/tok',
+      api: 'https://letsplayquiz.net',
       publishedAt: '2026-09-26T00:00:00.000Z',
     }
     await fs.writeFile(path.join(configDir, 'tests.jsonl'), `${JSON.stringify(good)}\n{ broken\n`)
@@ -712,8 +712,8 @@ describe('저장 실패는 발행을 실패시키지 않는다', () => {
     const body = {
       ok: true,
       slug: 'ab12cd34',
-      url: 'https://letsplaytest.com/t/ab12cd34',
-      ownerUrl: 'https://letsplaytest.com/t/ab12cd34/owner/tok',
+      url: 'https://letsplayquiz.net/t/ab12cd34',
+      ownerUrl: 'https://letsplayquiz.net/t/ab12cd34/owner/tok',
       warnings: [],
     }
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(201, body)))
@@ -757,8 +757,8 @@ describe('동시 publish', () => {
         return jsonResponse(201, {
           ok: true,
           slug,
-          url: `https://letsplaytest.com/t/${slug}`,
-          ownerUrl: `https://letsplaytest.com/t/${slug}/owner/tok`,
+          url: `https://letsplayquiz.net/t/${slug}`,
+          ownerUrl: `https://letsplayquiz.net/t/${slug}/owner/tok`,
           warnings: [],
         })
       }),
