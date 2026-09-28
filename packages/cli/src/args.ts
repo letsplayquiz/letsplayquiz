@@ -32,7 +32,7 @@ export type ParseOutcome =
   | { kind: 'version' }
   | { kind: 'error'; message: string; exitCode: 2 }
 
-export const HELP_TEXT = `letsplayquiz — AI 에이전트로 PlayTest 테스트를 만들고 발행하는 CLI
+export const HELP_TEXT = `letsplayquiz — AI 에이전트로 LetsPlayQuiz 테스트를 만들고 발행하는 CLI
 
 사용법:
   letsplayquiz guide [--kind score|type|balance|worldcup]
