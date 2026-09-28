@@ -7,6 +7,12 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+// npm이 Windows에서 npm.cmd(배치 셸)로 설치되므로 execFileSync('npm', ...)은
+// ENOENT로 죽는다(T1 리뷰 4번). npx/pnpm 스크립트는 셸을 거쳐 PATH의 확장자
+// 해석 규칙을 타지만, execFileSync는 셸 없이 그대로 실행하기 때문에 플랫폼별
+// 실행 파일 이름을 직접 골라야 한다.
+const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+
 const here = path.dirname(fileURLToPath(import.meta.url))
 const cliDir = path.join(here, '..')
 const lpqzDir = path.join(here, '..', '..', 'lpqz')
@@ -22,8 +28,21 @@ describe('packages/cli package.json', () => {
     expect(pkg.name).toBe('letsplayquiz')
   })
 
-  it('bin에 letsplayquiz와 lpqz 둘 다 dist/bin.js를 가리킨다', () => {
-    expect(pkg.bin).toEqual({ letsplayquiz: 'dist/bin.js', lpqz: 'dist/bin.js' })
+  // T1 리뷰 1번: 두 패키지가 같은 bin 이름(lpqz)을 선언하면 둘 다 전역
+  // 설치할 때 EEXIST로 실패한다. 본 패키지의 bin은 letsplayquiz 하나뿐이고,
+  // lpqz는 연결 패키지(packages/lpqz)만 선언한다 — 아래 두 describe의
+  // "겹치지 않음" 테스트가 이걸 같이 확인한다.
+  it('bin은 letsplayquiz 하나뿐이다(lpqz는 없음)', () => {
+    expect(pkg.bin).toEqual({ letsplayquiz: 'dist/bin.js' })
+  })
+
+  // T1 리뷰 3번: lpqz/bin.js가 `letsplayquiz/dist/bin.js`를 직접 import한다
+  // (스펙 §7.3). 본 패키지가 exports를 두게 되면 그 경로가 막힐 수 있으니,
+  // exports가 없거나 있다면 './dist/bin.js'가 열려 있음을 고정한다.
+  it('exports가 없거나, 있으면 ./dist/bin.js가 열려 있다', () => {
+    if (pkg.exports === undefined) return
+    const exportsMap = pkg.exports as Record<string, unknown>
+    expect(exportsMap['./dist/bin.js']).toBeDefined()
   })
 })
 
@@ -40,6 +59,14 @@ describe('packages/lpqz package.json', () => {
     expect(lpqzPkg.files).toContain('bin.js')
   })
 
+  it('두 패키지의 bin 이름이 겹치지 않는다(전역 설치 EEXIST 방지)', () => {
+    const cliBinNames = Object.keys(cliPkg.bin as Record<string, string>)
+    const lpqzBinNames = Object.keys(lpqzPkg.bin as Record<string, string>)
+    expect(cliBinNames).toEqual(['letsplayquiz'])
+    expect(lpqzBinNames).toEqual(['lpqz'])
+    expect(cliBinNames.some((n) => lpqzBinNames.includes(n))).toBe(false)
+  })
+
   it('type이 module이다', () => {
     expect(lpqzPkg.type).toBe('module')
   })
@@ -54,7 +81,7 @@ describe('packages/lpqz package.json', () => {
   })
 
   it('npm pack --dry-run --json의 파일 목록에 bin.js가 있다(빌드 불필요)', () => {
-    const out = execFileSync('npm', ['pack', '--dry-run', '--json'], { cwd: lpqzDir, encoding: 'utf8' })
+    const out = execFileSync(npmCommand, ['pack', '--dry-run', '--json'], { cwd: lpqzDir, encoding: 'utf8' })
     const [result] = JSON.parse(out) as { files: { path: string }[] }[]
     expect(result.files.some((f) => f.path === 'bin.js')).toBe(true)
   })

@@ -16,6 +16,20 @@ npx letsplayquiz guide --kind balance
 > `npx letsplayquiz guide --kind balance`를 읽고 "짜장 vs 짬뽕" 테스트를 만들어서
 > `npx letsplayquiz validate test.json`을 통과시킨 뒤 `npx letsplayquiz publish test.json`으로 올려 줘.
 
+## 전역 설치
+
+이 패키지는 `letsplayquiz` 명령 하나만 등록합니다. 짧은 이름 `lpqz`는 이 패키지가
+아니라 [연결 패키지 `lpqz`](../lpqz/README.md)가 등록합니다(같은 이름을 두 패키지가
+선언하면 전역 설치 시 `EEXIST`로 충돌하기 때문입니다).
+
+| 설치 | 실행 명령 |
+|---|---|
+| `npm i -g letsplayquiz` | `letsplayquiz` |
+| `npm i -g lpqz` | `lpqz` |
+
+(npm에 이 두 패키지를 새로 게시할 때의 순서는 [`packages/lpqz/README.md`](../lpqz/README.md)의
+"이 패키지를 게시할 때"를 본다 — `letsplayquiz`를 먼저 게시해야 한다.)
+
 ## 명령
 
 | 명령 | 설명 |
