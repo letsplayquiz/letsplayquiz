@@ -11,7 +11,11 @@ import { fileURLToPath } from 'node:url'
 // ENOENT로 죽는다(T1 리뷰 4번). npx/pnpm 스크립트는 셸을 거쳐 PATH의 확장자
 // 해석 규칙을 타지만, execFileSync는 셸 없이 그대로 실행하기 때문에 플랫폼별
 // 실행 파일 이름을 직접 골라야 한다.
-const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+// Node 18.20 이후로는 .cmd를 셸 없이 실행하면 EINVAL로 거부한다(CVE-2024-27980
+// 대응). 그래서 Windows에서는 이름만 바꾸지 않고 셸을 거친다. 인자는 고정
+// 문자열뿐이라 셸 해석에 끼어들 사용자 입력이 없다.
+const isWindows = process.platform === 'win32'
+const npmCommand = isWindows ? 'npm.cmd' : 'npm'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const cliDir = path.join(here, '..')
@@ -81,7 +85,7 @@ describe('packages/lpqz package.json', () => {
   })
 
   it('npm pack --dry-run --json의 파일 목록에 bin.js가 있다(빌드 불필요)', () => {
-    const out = execFileSync(npmCommand, ['pack', '--dry-run', '--json'], { cwd: lpqzDir, encoding: 'utf8' })
+    const out = execFileSync(npmCommand, ['pack', '--dry-run', '--json'], { cwd: lpqzDir, encoding: 'utf8', shell: isWindows })
     const [result] = JSON.parse(out) as { files: { path: string }[] }[]
     expect(result.files.some((f) => f.path === 'bin.js')).toBe(true)
   })

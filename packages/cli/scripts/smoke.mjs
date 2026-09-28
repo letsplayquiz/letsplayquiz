@@ -19,7 +19,11 @@ const distBin = path.join(here, '..', 'dist', 'bin.js')
 // npm은 Windows에서 npm.cmd(배치 셸)로 설치된다. execFileAsync는 셸 없이
 // 그대로 실행하기 때문에 PATH 확장자 해석을 타지 않아 'npm'만 주면
 // ENOENT로 죽는다(T1 리뷰 4번) — 플랫폼별 실행 파일 이름을 직접 고른다.
-const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+// Node 18.20 이후로는 .cmd를 셸 없이 실행하면 EINVAL로 거부한다(CVE-2024-27980
+// 대응). 그래서 Windows에서는 이름만 바꾸지 않고 셸을 거친다. 인자는 고정
+// 문자열뿐이라 셸 해석에 끼어들 사용자 입력이 없다.
+const isWindows = process.platform === 'win32'
+const npmCommand = isWindows ? 'npm.cmd' : 'npm'
 
 /** 실제로 열려 있지 않은 포트를 얻는다. `127.0.0.1:1`은 "금지 포트"라 fetch가
  * 연결을 시도조차 하지 않고 즉시 거부하는 경로라(2026-09-26 세 번째 리뷰
@@ -111,7 +115,7 @@ async function main() {
     // 가리키는 dist/bin.js가 있는지(스펙 §7.3, §10). 이건 빌드 산출물이
     // 있어야 의미가 있어서 vitest가 아니라 여기서 확인한다.
     const cliDir = path.join(here, '..')
-    const { stdout: packOut } = await execFileAsync(npmCommand, ['pack', '--dry-run', '--json'], { cwd: cliDir })
+    const { stdout: packOut } = await execFileAsync(npmCommand, ['pack', '--dry-run', '--json'], { cwd: cliDir, shell: isWindows })
     const [packResult] = JSON.parse(packOut)
     if (!packResult.files.some((f) => f.path === 'dist/bin.js')) {
       throw new Error('letsplayquiz npm pack 파일 목록에 dist/bin.js가 없어요')
