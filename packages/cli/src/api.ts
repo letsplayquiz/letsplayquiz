@@ -1,9 +1,9 @@
-// letsplaytest 서버(스펙 §4)와의 HTTP 계약을 다루는 얇은 층. `fetch`는 전역
+// letsplayquiz 서버(스펙 §4)와의 HTTP 계약을 다루는 얇은 층. `fetch`는 전역
 // 함수를 그대로 쓴다(런타임 의존성 0개, 스펙 §7.1) — 테스트는
 // `vi.stubGlobal('fetch', …)`로 갈아끼운다.
 
 export function userAgent(version: string): string {
-  return `letsplaytest/${version}`
+  return `letsplayquiz/${version}`
 }
 
 export interface HttpResponse {

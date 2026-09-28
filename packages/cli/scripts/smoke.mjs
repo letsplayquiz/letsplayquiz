@@ -31,9 +31,9 @@ async function getUnusedPort() {
 }
 
 async function main() {
-  const tmp = await mkdtemp(path.join(tmpdir(), 'letsplaytest-smoke-'))
+  const tmp = await mkdtemp(path.join(tmpdir(), 'letsplayquiz-smoke-'))
   try {
-    const linkPath = path.join(tmp, 'letsplaytest-link.js')
+    const linkPath = path.join(tmp, 'letsplayquiz-link.js')
     await symlink(distBin, linkPath)
 
     // 1) 심볼릭 링크로 실행한 --version이 버전을 찍고 exit 0인지.
@@ -102,6 +102,30 @@ async function main() {
     } finally {
       await new Promise((resolve) => dropServer.close(resolve))
     }
+
+    // 5) 본 패키지(letsplayquiz)의 npm pack --dry-run 파일 목록에 bin이
+    // 가리키는 dist/bin.js가 있는지(스펙 §7.3, §10). 이건 빌드 산출물이
+    // 있어야 의미가 있어서 vitest가 아니라 여기서 확인한다.
+    const cliDir = path.join(here, '..')
+    const { stdout: packOut } = await execFileAsync('npm', ['pack', '--dry-run', '--json'], { cwd: cliDir })
+    const [packResult] = JSON.parse(packOut)
+    if (!packResult.files.some((f) => f.path === 'dist/bin.js')) {
+      throw new Error('letsplayquiz npm pack 파일 목록에 dist/bin.js가 없어요')
+    }
+    console.log('OK  letsplayquiz npm pack --dry-run 파일 목록에 dist/bin.js가 있음')
+
+    // 6) 연결 패키지 packages/lpqz/bin.js를 실행하면 본 CLI와 같은 결과가
+    // 나오는지(스펙 §7.3, §10 — "연결 패키지를 실행하면 본 CLI와 같은
+    // 결과가 나온다(스모크)"). 빌드 없이 저장소에 그대로 커밋된 파일이라
+    // dist/bin.js가 이미 있으면 바로 실행할 수 있다.
+    const lpqzBin = path.join(here, '..', '..', 'lpqz', 'bin.js')
+    const lpqzVersion = await execFileAsync(process.execPath, [lpqzBin, '--version'])
+    if (lpqzVersion.stdout !== versionResult.stdout) {
+      throw new Error(
+        `lpqz --version이 본 CLI와 달라요: ${JSON.stringify(lpqzVersion.stdout)} !== ${JSON.stringify(versionResult.stdout)}`,
+      )
+    }
+    console.log('OK  packages/lpqz/bin.js --version이 본 CLI와 같음:', lpqzVersion.stdout.trim())
   } finally {
     await rm(tmp, { recursive: true, force: true })
   }

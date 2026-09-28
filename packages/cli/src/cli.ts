@@ -1,4 +1,4 @@
-// letsplaytest CLI 본체. `run(argv, io)`가 핵심이고, `main()`은 이걸 실제
+// letsplayquiz CLI 본체. `run(argv, io)`가 핵심이고, `main()`은 이걸 실제
 // `process`에 연결한다(테스트는 `run`만 직접 부른다 — process를 건드리지 않고
 // 종료 코드를 검사할 수 있다). 실행 파일 진입점은 `bin.ts`다 — npm/npx가 만드는
 // `bin`은 심볼릭 링크인데, "이 모듈이 메인 모듈인가"를 `import.meta.url`과
@@ -304,7 +304,7 @@ async function runList(args: ParsedArgs, io: Io): Promise<number> {
     return 0
   }
   if (sorted.length === 0) {
-    io.stdout('아직 발행한 테스트가 없어요. `letsplaytest publish`로 만들어 보세요\n')
+    io.stdout('아직 발행한 테스트가 없어요. `letsplayquiz publish`로 만들어 보세요\n')
     return 0
   }
   for (const record of sorted) {

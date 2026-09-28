@@ -9,7 +9,7 @@ const isWindows = process.platform === 'win32'
 let tmpHome: string
 
 beforeEach(async () => {
-  tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), 'letsplaytest-store-'))
+  tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), 'letsplayquiz-store-'))
 })
 
 afterEach(async () => {
@@ -31,14 +31,14 @@ const record: TestRecord = {
 }
 
 describe('resolveConfigDir / resolveStoreFile', () => {
-  it('기본은 homedir/.config/letsplaytest, 파일은 tests.jsonl', () => {
-    expect(resolveConfigDir(io())).toBe(path.join(tmpHome, '.config', 'letsplaytest'))
-    expect(resolveStoreFile(io())).toBe(path.join(tmpHome, '.config', 'letsplaytest', 'tests.jsonl'))
+  it('기본은 homedir/.config/letsplayquiz, 파일은 tests.jsonl', () => {
+    expect(resolveConfigDir(io())).toBe(path.join(tmpHome, '.config', 'letsplayquiz'))
+    expect(resolveStoreFile(io())).toBe(path.join(tmpHome, '.config', 'letsplayquiz', 'tests.jsonl'))
   })
 
   it('XDG_CONFIG_HOME이 있으면 그 아래', () => {
     const xdg = path.join(tmpHome, 'xdg')
-    expect(resolveConfigDir(io({ XDG_CONFIG_HOME: xdg }))).toBe(path.join(xdg, 'letsplaytest'))
+    expect(resolveConfigDir(io({ XDG_CONFIG_HOME: xdg }))).toBe(path.join(xdg, 'letsplayquiz'))
   })
 })
 
@@ -98,7 +98,7 @@ describe('saveRecord', () => {
     await fs.mkdir(realDir, { recursive: true })
     const configBase = path.join(tmpHome, '.config')
     await fs.mkdir(configBase, { recursive: true })
-    symlinkSync(realDir, path.join(configBase, 'letsplaytest'))
+    symlinkSync(realDir, path.join(configBase, 'letsplayquiz'))
 
     const result = await saveRecord(io(), record)
     expect(result.warning).toBeDefined()
@@ -268,7 +268,7 @@ describe('loadRecords', () => {
     await fs.mkdir(realDir, { recursive: true })
     const configBase = path.join(tmpHome, '.config')
     await fs.mkdir(configBase, { recursive: true })
-    symlinkSync(realDir, path.join(configBase, 'letsplaytest'))
+    symlinkSync(realDir, path.join(configBase, 'letsplayquiz'))
 
     const result = await loadRecords(io())
     expect(result.records).toEqual([])

@@ -9,8 +9,8 @@ let tmpHome: string
 let tmpDir: string
 
 beforeEach(async () => {
-  tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), 'letsplaytest-cli-home-'))
-  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'letsplaytest-cli-files-'))
+  tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), 'letsplayquiz-cli-home-'))
+  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'letsplayquiz-cli-files-'))
 })
 
 afterEach(async () => {
@@ -291,7 +291,7 @@ describe('list 명령', () => {
     // (죽은 코드였다), 그 기능이 살아 있던 버전이 남긴 tests.jsonl은 여전히
     // 디스크에 있을 수 있다 — list가 그런 줄을 무시하고 나머지 필드로
     // 정상 표시해야 한다(경고나 "(확인 필요)" 표시는 더 이상 없다).
-    const configDir = path.join(tmpHome, '.config', 'letsplaytest')
+    const configDir = path.join(tmpHome, '.config', 'letsplayquiz')
     await fs.mkdir(configDir, { recursive: true })
     const legacyRecord = {
       slug: 'ab12cd34',
@@ -319,7 +319,7 @@ describe('공통', () => {
     const io = makeIo()
     const code = await run([], io)
     expect(code).toBe(2)
-    expect(io.stderrText()).toContain('letsplaytest')
+    expect(io.stderrText()).toContain('letsplayquiz')
   })
 
   it('--version', async () => {
@@ -685,7 +685,7 @@ describe('validate 성공 + warnings', () => {
 
 describe('list의 손상된 기록 파일', () => {
   it('깨진 줄이 있으면 stderr로 알리고 나머지만 보여 준다', async () => {
-    const configDir = path.join(tmpHome, '.config', 'letsplaytest')
+    const configDir = path.join(tmpHome, '.config', 'letsplayquiz')
     await fs.mkdir(configDir, { recursive: true })
     const good = {
       slug: 'abc',
@@ -778,7 +778,7 @@ describe('main()은 process.exit()을 부르지 않는다', () => {
       throw new Error('process.exit()이 불렸어요 — process.exitCode만 설정해야 해요')
     })
     try {
-      process.argv = [process.execPath, 'letsplaytest', '--version']
+      process.argv = [process.execPath, 'letsplayquiz', '--version']
       process.exitCode = undefined
       await main()
       expect(exitSpy).not.toHaveBeenCalled()
@@ -797,7 +797,7 @@ describe('main()은 process.exit()을 부르지 않는다', () => {
       throw new Error('process.exit()이 불렸어요 — process.exitCode만 설정해야 해요')
     })
     try {
-      process.argv = [process.execPath, 'letsplaytest', 'dance']
+      process.argv = [process.execPath, 'letsplayquiz', 'dance']
       process.exitCode = undefined
       await main()
       expect(exitSpy).not.toHaveBeenCalled()

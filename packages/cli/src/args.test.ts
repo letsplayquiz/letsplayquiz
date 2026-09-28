@@ -50,13 +50,13 @@ describe('parseArgs', () => {
     expect(outcome.kind).toBe('run')
   })
 
-  it('--api가 LETSPLAYTEST_API보다 이긴다', () => {
-    const outcome = parseArgs(['list', '--api', 'https://flag.example'], env({ LETSPLAYTEST_API: 'https://env.example' }))
+  it('--api가 LETSPLAYQUIZ_API보다 이긴다', () => {
+    const outcome = parseArgs(['list', '--api', 'https://flag.example'], env({ LETSPLAYQUIZ_API: 'https://env.example' }))
     expect(outcome).toMatchObject({ kind: 'run', args: { api: 'https://flag.example' } })
   })
 
-  it('--api가 없으면 LETSPLAYTEST_API를 쓴다', () => {
-    const outcome = parseArgs(['list'], env({ LETSPLAYTEST_API: 'https://env.example' }))
+  it('--api가 없으면 LETSPLAYQUIZ_API를 쓴다', () => {
+    const outcome = parseArgs(['list'], env({ LETSPLAYQUIZ_API: 'https://env.example' }))
     expect(outcome).toMatchObject({ kind: 'run', args: { api: 'https://env.example' } })
   })
 
@@ -120,8 +120,8 @@ describe('parseArgs', () => {
     expect(outcome).toMatchObject({ kind: 'run', args: { api: 'https://host.example/sub/' } })
   })
 
-  it('list는 --api 검증을 건너뛴다(잘못된 LETSPLAYTEST_API가 로컬 목록을 막지 않게)', () => {
-    expect(parseArgs(['list'], env({ LETSPLAYTEST_API: 'http://not-local.example' })).kind).toBe('run')
+  it('list는 --api 검증을 건너뛴다(잘못된 LETSPLAYQUIZ_API가 로컬 목록을 막지 않게)', () => {
+    expect(parseArgs(['list'], env({ LETSPLAYQUIZ_API: 'http://not-local.example' })).kind).toBe('run')
     expect(parseArgs(['list', '--api', 'not a url either'], env()).kind).toBe('run')
   })
 })
