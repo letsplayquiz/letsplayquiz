@@ -283,6 +283,22 @@ export function truncateRaw(text: string, maxChars = 2000): string {
   return text.length > maxChars ? `${text.slice(0, maxChars)}…` : text
 }
 
+// `/owner/<token>`(JSON이 슬래시를 `\/`로 이스케이프한 꼴 포함)의 토큰 자리.
+const OWNER_PATH_RE = /(\\?\/owner\\?\/)[^\s"'<>\\/?#&]+/g
+// `"ownerUrl": "…"`(그리고 `owner`로 시작하는 다른 키)의 값 전체.
+const OWNER_FIELD_RE = /("owner[A-Za-z]*"\s*:\s*)"(?:[^"\\]|\\.)*"/g
+
+/**
+ * 받은 원문을 사람·로그에 보여 주기 전에 owner 토큰을 가린다(SWE-46). 결과 불명(5)
+ * 출력은 원문을 그대로 싣는데, 에이전트가 CI에서 돌리면 그 출력이 로그로 남는다 —
+ * 대시보드 주소가 섞여 있으면 토큰이 샌다. 사람이 원문에서 확인할 것은 "발행됐는지"
+ * (slug·url)이지 토큰이 아니고, 토큰이 필요하면 사이트의 내 테스트 목록이나 서버
+ * 기록으로 찾는다.
+ */
+export function redactOwnerSecrets(text: string): string {
+  return text.replace(OWNER_FIELD_RE, '$1"[redacted]"').replace(OWNER_PATH_RE, '$1[redacted]')
+}
+
 /** publish에서 "확실히 실패"로 봐도 되는 유일한 4 오류 코드들. 이 목록에 없는
  * 코드(서버가 새 코드를 추가했거나, `publish_unknown`처럼 서버 스스로도
  * 결과를 모른다고 알리는 경우)는 안전한 쪽(5)으로 본다(2026-09-26 조율자
@@ -312,13 +328,14 @@ export function derivePublishExitCode(outcome: Outcome, response: HttpResponse):
   if (isBadResponseOutcome(outcome)) {
     const ambiguousStatus = (response.status >= 200 && response.status < 300) || response.status >= 500
     if (!ambiguousStatus) return { exitCode: 4 }
-    const raw = response.status >= 500 ? truncateRaw(response.text, 2000) : response.text
+    const redacted = redactOwnerSecrets(response.text)
+    const raw = response.status >= 500 ? truncateRaw(redacted, 2000) : redacted
     return { exitCode: 5, raw }
   }
 
   const code = outcomeErrorCode(outcome)
   if (code !== undefined && response.status >= 500 && !DEFINITE_4_ERROR_CODES.has(code)) {
-    return { exitCode: 5, raw: response.text }
+    return { exitCode: 5, raw: redactOwnerSecrets(response.text) }
   }
 
   return { exitCode: 4 }

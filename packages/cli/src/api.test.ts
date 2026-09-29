@@ -9,6 +9,7 @@ import {
   classifyPublishNetworkFailure,
   isDefiniteConnectFailure,
   truncateRaw,
+  redactOwnerSecrets,
   userAgent,
   withRetryAfterField,
   httpFetch,
@@ -163,6 +164,33 @@ describe('decideOutcome', () => {
   })
 })
 
+// 원문에 owner 토큰이 섞여 오면 CI 로그로 새지 않게 가린다(SWE-46).
+const OWNER_TOKEN = 'Zz9Zz9Zz9Zz9Zz9Zz9Zz9Zz9Zz9Zz9Qq'
+
+describe('redactOwnerSecrets', () => {
+  it('/owner/<token> 경로를 가린다(평문·JSON 이스케이프 슬래시 모두)', () => {
+    const plain = `<a href="https://x.test/t/ab12cd34/owner/${OWNER_TOKEN}?a=1">x</a>`
+    const escaped = `{"link":"https:\\/\\/x.test\\/t\\/ab12cd34\\/owner\\/${OWNER_TOKEN}"}`
+    for (const text of [plain, escaped]) {
+      const out = redactOwnerSecrets(text)
+      expect(out).not.toContain(OWNER_TOKEN)
+      expect(out).toContain('[redacted]')
+    }
+  })
+
+  it('ownerUrl 필드 값은 형식과 상관없이 통째로 가린다', () => {
+    const text = JSON.stringify({ ok: true, ownerUrl: `weird:${OWNER_TOKEN}`, slug: 'ab12cd34' })
+    const out = redactOwnerSecrets(text)
+    expect(out).not.toContain(OWNER_TOKEN)
+    expect(JSON.parse(out)).toEqual({ ok: true, ownerUrl: '[redacted]', slug: 'ab12cd34' })
+  })
+
+  it('토큰이 없는 원문은 그대로 둔다', () => {
+    const text = JSON.stringify({ ok: true, url: 'https://x.test/t/ab12cd34' })
+    expect(redactOwnerSecrets(text)).toBe(text)
+  })
+})
+
 describe('derivePublishExitCode', () => {
   it('bad_response + 2xx → 5 + raw', () => {
     const outcome = decideOutcome(makeHttpResponse(200, JSON.stringify({ hello: 'world' })), 'contract')
@@ -178,6 +206,16 @@ describe('derivePublishExitCode', () => {
     const derived = derivePublishExitCode(outcome, response)
     expect(derived.exitCode).toBe(5)
     expect(derived.raw?.length).toBeLessThanOrEqual(2001) // 2000자 + 말줄임표
+  })
+
+  it('돌려주는 raw에는 owner 토큰이 없다(2xx 계약 위반·5xx 모르는 코드)', () => {
+    const okish = makeHttpResponse(200, JSON.stringify({ ownerUrl: `https://x.test/t/ab12cd34/owner/${OWNER_TOKEN}` }))
+    expect(derivePublishExitCode(decideOutcome(okish, 'contract'), okish).raw).not.toContain(OWNER_TOKEN)
+    const body = { ok: false, error: { code: 'publish_unknown', message: 'm' }, ownerUrl: `https://x.test/t/ab12cd34/owner/${OWNER_TOKEN}` }
+    const unknown = makeHttpResponse(502, JSON.stringify(body))
+    const derived = derivePublishExitCode(decideOutcome(unknown, 'contract'), unknown)
+    expect(derived.exitCode).toBe(5)
+    expect(derived.raw).not.toContain(OWNER_TOKEN)
   })
 
   it('bad_response + 4xx → 그대로 4', () => {

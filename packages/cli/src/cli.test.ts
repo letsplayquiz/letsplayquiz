@@ -610,6 +610,38 @@ describe('publish 결과 불명(exit 5)', () => {
   })
 })
 
+// 결과 불명(5)일 때 받은 원문을 보여 주지만, 그 안의 owner 토큰은 CI 로그 등으로
+// 새면 안 된다(SWE-46). 원문 출력 경로 셋(필수 필드 누락, 2xx 계약 위반, 5xx 모르는
+// 코드)을 사람용·--json 출력 모두에서 확인한다.
+describe('결과 불명 원문에서 owner 토큰을 가린다', () => {
+  const TOKEN = 'Zz9Zz9Zz9Zz9Zz9Zz9Zz9Zz9Zz9Zz9Qq'
+  const ownerUrl = `https://letsplayquiz.net/t/ab12cd34/owner/${TOKEN}`
+  const cases: Array<[string, () => Response]> = [
+    ['ok:true인데 url이 없음', () => jsonResponse(201, { ok: true, slug: 'ab12cd34', ownerUrl })],
+    ['ok 필드 없는 2xx', () => new Response(JSON.stringify({ slug: 'ab12cd34', ownerUrl }), { status: 200 })],
+    ['5xx HTML에 대시보드 링크', () => new Response(`<html><a href="${ownerUrl}">d</a></html>`, { status: 502 })],
+    [
+      '5xx publish_unknown + ownerUrl',
+      () => jsonResponse(502, { ok: false, error: { code: 'publish_unknown', message: 'm' }, ownerUrl }),
+    ],
+  ]
+  for (const [name, respond] of cases) {
+    for (const asJson of [false, true]) {
+      it(`${name}${asJson ? ' (--json)' : ''} → 5, 출력에 토큰이 없다`, async () => {
+        const file = path.join(tmpDir, 'test.json')
+        await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+        vi.stubGlobal('fetch', vi.fn(async () => respond()))
+        const io = makeIo()
+        const code = await run(['publish', file, ...(asJson ? ['--json'] : [])], io)
+        expect(code).toBe(5)
+        const all = io.stdoutText() + io.stderrText()
+        expect(all).not.toContain(TOKEN)
+        expect(all).toContain('[redacted]')
+      })
+    }
+  }
+})
+
 describe('서버가 결과 불명을 스스로 알림(publish_unknown) / 알려진 4 코드', () => {
   it('JSON 502 publish_unknown → 5', async () => {
     const file = path.join(tmpDir, 'test.json')
