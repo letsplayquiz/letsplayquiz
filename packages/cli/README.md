@@ -41,6 +41,17 @@ npx letsplayquiz guide --kind balance
 
 `file` 자리에 `-`를 주면 표준 입력에서 JSON을 읽습니다(파일 없이 파이프로 넘길 때 씁니다).
 
+## 필드(종류와 무관하게 공통)
+
+종류별 필드(`kind`, `questions`, `resultTypes` 등)는 `guide --kind <kind>`가 그때그때
+정확한 규칙과 예시로 알려줍니다. 아래는 모든 종류가 공통으로 쓰는, 생략 가능한 최상위 필드입니다.
+
+| 필드 | 설명 |
+|---|---|
+| `locale` | `ko`\|`ja`\|`en`. 생략하면 `ko`. 참여자가 보는 화면의 언어 |
+| `theme` | `classic`\|`mono`\|`candy`\|`ocean`\|`lemon`\|`mint`\|`grape`. 생략하면 `classic`. 참여·결과 화면의 꾸밈 |
+| `requestListing` | `boolean`. 생략하면 `false`. `true`면 운영자가 승인하거나 참여자가 충분히 모였을 때 메인 목록에 오를 수 있게 신청한다. 친구 이름처럼 사적인 내용이 있으면 신청하지 않는 편이 좋다 |
+
 ## 옵션
 
 | 옵션 | 설명 |

@@ -1,0 +1,9 @@
+{
+  "skill_name": "letsplayquiz",
+  "evals": [
+    {"id": 1, "prompt": "회사 동기들이랑 해볼 밸런스 게임 하나 만들어줘. 직장인 공감 버전으로!", "expected_output": "Korean balance quiz draft shown readably (not raw JSON), 2 choices per question, validated, asks before publishing.", "files": []},
+    {"id": 2, "prompt": "Can you make a personality test for my book club? Something like 'what kind of reader are you'. Keep it fun, we're all in our 30s.", "expected_output": "English type quiz with 3-5 distinct reachable reader types, readable draft, validated, asks before publishing.", "files": []},
+    {"id": 3, "prompt": "コンビニお菓子の最強トーナメントを作りたい！8個でお願い", "expected_output": "Japanese worldcup with 8 candidates, questions [], validated, asks before publishing.", "files": []},
+    {"id": 4, "prompt": "나에 대해 얼마나 아는지 친구들한테 보낼 퀴즈 만들어줘", "expected_output": "Recognizes a score quiz about the user; does not invent facts about the user — asks for the real answers (or proposes questions for the user to answer) before marking correct choices; no publish.", "files": []}
+  ]
+}
