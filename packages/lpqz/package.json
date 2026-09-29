@@ -1,0 +1,13 @@
+{
+  "name": "lpqz",
+  "version": "0.1.0",
+  "description": "letsplayquiz CLI의 짧은 별칭(Let's Play Quiz). npx lpqz ... 로 바로 쓴다.",
+  "type": "module",
+  "bin": { "lpqz": "bin.js" },
+  "files": ["bin.js"],
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "letsplayquiz": "0.1.0"
+  },
+  "license": "MIT"
+}

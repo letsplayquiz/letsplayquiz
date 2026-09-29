@@ -1,4 +1,4 @@
-// 발행 기록 `~/.config/letsplaytest/tests.jsonl` (스펙 §7.3). 웹이 localStorage에
+// 발행 기록 `~/.config/letsplayquiz/tests.jsonl` (스펙 §7.3). 웹이 localStorage에
 // "내가 만든 테스트"를 남기듯, CLI는 이 파일에 남긴다.
 //
 // **락을 쓰지 않는다** (2026-09-26 세 번째 리뷰 라운드 후 조율자 결정 — 락을
@@ -49,7 +49,7 @@ const isWindows = process.platform === 'win32'
 export function resolveConfigDir(io: StoreIo): string {
   const xdg = io.env.XDG_CONFIG_HOME
   const base = xdg && xdg.trim() !== '' ? xdg : path.join(io.homedir(), '.config')
-  return path.join(base, 'letsplaytest')
+  return path.join(base, 'letsplayquiz')
 }
 
 export function resolveStoreFile(io: StoreIo): string {

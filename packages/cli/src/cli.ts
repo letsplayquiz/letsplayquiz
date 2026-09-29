@@ -1,4 +1,4 @@
-// letsplaytest CLI 본체. `run(argv, io)`가 핵심이고, `main()`은 이걸 실제
+// letsplayquiz CLI 본체. `run(argv, io)`가 핵심이고, `main()`은 이걸 실제
 // `process`에 연결한다(테스트는 `run`만 직접 부른다 — process를 건드리지 않고
 // 종료 코드를 검사할 수 있다). 실행 파일 진입점은 `bin.ts`다 — npm/npx가 만드는
 // `bin`은 심볼릭 링크인데, "이 모듈이 메인 모듈인가"를 `import.meta.url`과
@@ -17,6 +17,7 @@ import {
   derivePublishExitCode,
   classifyPublishNetworkFailure,
   isRecord,
+  redactOwnerSecrets,
   userAgent,
   withRetryAfterField,
   PUBLISH_TIMEOUT_MS,
@@ -96,11 +97,14 @@ const PUBLISH_UNKNOWN_MESSAGE = '발행됐을 수 있어요. 다시 publish하�
  * 상태의 응답, ok:true인데 필수 필드 누락)에서 4(확실히 발행 안 됨)와 구분해
  * 에이전트가 무작정 재시도로 중복 발행을 만들지 않게 한다(스펙 §7.4,
  * 2026-09-26 조율자 결정). `raw`(받은 원문)가 있으면 같이 보여 줘서 사람이
- * 직접 안에서 링크를 찾을 수 있게 한다 — 자동으로 뽑아 기록하는 기능은
+ * 직접 안에서 참여 링크를 찾을 수 있게 한다(owner 토큰은 가린다) — 자동으로 뽑아 기록하는 기능은
  * 2026-09-26 다섯 번째 리뷰에서 걷어냈다(4회차의 조건 강화 이후 어떤 호출
  * 경로에서도 실제로 뽑히는 경우가 없는 죽은 코드였다).
  */
-function printPublishUnknown(io: Io, args: ParsedArgs, raw?: string): void {
+function printPublishUnknown(io: Io, args: ParsedArgs, rawText?: string): void {
+  // 원문은 여기서 한 번 더 가린다 — 이 함수가 원문을 내보내는 유일한 출구라, 부르는
+  // 쪽이 가리는 것을 잊어도 owner 토큰이 stdout/stderr(=CI 로그)로 새지 않는다(SWE-46).
+  const raw = rawText === undefined ? undefined : redactOwnerSecrets(rawText)
   if (args.json) {
     const body: Record<string, unknown> = {
       ok: false,
@@ -304,7 +308,7 @@ async function runList(args: ParsedArgs, io: Io): Promise<number> {
     return 0
   }
   if (sorted.length === 0) {
-    io.stdout('아직 발행한 테스트가 없어요. `letsplaytest publish`로 만들어 보세요\n')
+    io.stdout('아직 발행한 테스트가 없어요. `letsplayquiz publish`로 만들어 보세요\n')
     return 0
   }
   for (const record of sorted) {

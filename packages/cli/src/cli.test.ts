@@ -9,8 +9,8 @@ let tmpHome: string
 let tmpDir: string
 
 beforeEach(async () => {
-  tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), 'letsplaytest-cli-home-'))
-  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'letsplaytest-cli-files-'))
+  tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), 'letsplayquiz-cli-home-'))
+  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'letsplayquiz-cli-files-'))
 })
 
 afterEach(async () => {
@@ -291,7 +291,7 @@ describe('list 명령', () => {
     // (죽은 코드였다), 그 기능이 살아 있던 버전이 남긴 tests.jsonl은 여전히
     // 디스크에 있을 수 있다 — list가 그런 줄을 무시하고 나머지 필드로
     // 정상 표시해야 한다(경고나 "(확인 필요)" 표시는 더 이상 없다).
-    const configDir = path.join(tmpHome, '.config', 'letsplaytest')
+    const configDir = path.join(tmpHome, '.config', 'letsplayquiz')
     await fs.mkdir(configDir, { recursive: true })
     const legacyRecord = {
       slug: 'ab12cd34',
@@ -319,7 +319,7 @@ describe('공통', () => {
     const io = makeIo()
     const code = await run([], io)
     expect(code).toBe(2)
-    expect(io.stderrText()).toContain('letsplaytest')
+    expect(io.stderrText()).toContain('letsplayquiz')
   })
 
   it('--version', async () => {
@@ -610,6 +610,38 @@ describe('publish 결과 불명(exit 5)', () => {
   })
 })
 
+// 결과 불명(5)일 때 받은 원문을 보여 주지만, 그 안의 owner 토큰은 CI 로그 등으로
+// 새면 안 된다(SWE-46). 원문 출력 경로 셋(필수 필드 누락, 2xx 계약 위반, 5xx 모르는
+// 코드)을 사람용·--json 출력 모두에서 확인한다.
+describe('결과 불명 원문에서 owner 토큰을 가린다', () => {
+  const TOKEN = 'Zz9Zz9Zz9Zz9Zz9Zz9Zz9Zz9Zz9Zz9Qq'
+  const ownerUrl = `https://letsplayquiz.net/t/ab12cd34/owner/${TOKEN}`
+  const cases: Array<[string, () => Response]> = [
+    ['ok:true인데 url이 없음', () => jsonResponse(201, { ok: true, slug: 'ab12cd34', ownerUrl })],
+    ['ok 필드 없는 2xx', () => new Response(JSON.stringify({ slug: 'ab12cd34', ownerUrl }), { status: 200 })],
+    ['5xx HTML에 대시보드 링크', () => new Response(`<html><a href="${ownerUrl}">d</a></html>`, { status: 502 })],
+    [
+      '5xx publish_unknown + ownerUrl',
+      () => jsonResponse(502, { ok: false, error: { code: 'publish_unknown', message: 'm' }, ownerUrl }),
+    ],
+  ]
+  for (const [name, respond] of cases) {
+    for (const asJson of [false, true]) {
+      it(`${name}${asJson ? ' (--json)' : ''} → 5, 출력에 토큰이 없다`, async () => {
+        const file = path.join(tmpDir, 'test.json')
+        await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+        vi.stubGlobal('fetch', vi.fn(async () => respond()))
+        const io = makeIo()
+        const code = await run(['publish', file, ...(asJson ? ['--json'] : [])], io)
+        expect(code).toBe(5)
+        const all = io.stdoutText() + io.stderrText()
+        expect(all).not.toContain(TOKEN)
+        expect(all).toContain('[redacted]')
+      })
+    }
+  }
+})
+
 describe('서버가 결과 불명을 스스로 알림(publish_unknown) / 알려진 4 코드', () => {
   it('JSON 502 publish_unknown → 5', async () => {
     const file = path.join(tmpDir, 'test.json')
@@ -685,7 +717,7 @@ describe('validate 성공 + warnings', () => {
 
 describe('list의 손상된 기록 파일', () => {
   it('깨진 줄이 있으면 stderr로 알리고 나머지만 보여 준다', async () => {
-    const configDir = path.join(tmpHome, '.config', 'letsplaytest')
+    const configDir = path.join(tmpHome, '.config', 'letsplayquiz')
     await fs.mkdir(configDir, { recursive: true })
     const good = {
       slug: 'abc',
@@ -778,7 +810,7 @@ describe('main()은 process.exit()을 부르지 않는다', () => {
       throw new Error('process.exit()이 불렸어요 — process.exitCode만 설정해야 해요')
     })
     try {
-      process.argv = [process.execPath, 'letsplaytest', '--version']
+      process.argv = [process.execPath, 'letsplayquiz', '--version']
       process.exitCode = undefined
       await main()
       expect(exitSpy).not.toHaveBeenCalled()
@@ -797,7 +829,7 @@ describe('main()은 process.exit()을 부르지 않는다', () => {
       throw new Error('process.exit()이 불렸어요 — process.exitCode만 설정해야 해요')
     })
     try {
-      process.argv = [process.execPath, 'letsplaytest', 'dance']
+      process.argv = [process.execPath, 'letsplayquiz', 'dance']
       process.exitCode = undefined
       await main()
       expect(exitSpy).not.toHaveBeenCalled()

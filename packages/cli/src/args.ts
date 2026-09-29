@@ -32,20 +32,20 @@ export type ParseOutcome =
   | { kind: 'version' }
   | { kind: 'error'; message: string; exitCode: 2 }
 
-export const HELP_TEXT = `letsplaytest — AI 에이전트로 PlayTest 테스트를 만들고 발행하는 CLI
+export const HELP_TEXT = `letsplayquiz — AI 에이전트로 LetsPlayQuiz 테스트를 만들고 발행하는 CLI
 
 사용법:
-  letsplaytest guide [--kind score|type|balance|worldcup]
-  letsplaytest validate <file | ->
-  letsplaytest publish  <file | ->
-  letsplaytest list
+  letsplayquiz guide [--kind score|type|balance|worldcup]
+  letsplayquiz validate <file | ->
+  letsplayquiz publish  <file | ->
+  letsplayquiz list
 
 공통 옵션:
   --json          서버 응답(또는 list의 기록)을 그대로 출력
   --lang ko|ja|en 서버 메시지 언어(쿼리 lang)
   --api <url>     서버 주소. https만 허용(로컬 개발은 http://localhost, http://127.0.0.1 예외).
-                  기본값: ${DEFAULT_API}, 환경변수 LETSPLAYTEST_API로도 설정 가능
-  --no-save       publish 결과를 ~/.config/letsplaytest/tests.jsonl(XDG_CONFIG_HOME이 있으면 그 아래)에 남기지 않음
+                  기본값: ${DEFAULT_API}, 환경변수 LETSPLAYQUIZ_API로도 설정 가능
+  --no-save       publish 결과를 ~/.config/letsplayquiz/tests.jsonl(XDG_CONFIG_HOME이 있으면 그 아래)에 남기지 않음
   --help          도움말 출력
   --version       버전 출력
 `
@@ -133,8 +133,8 @@ export function parseArgs(argv: string[], env: NodeJS.ProcessEnv): ParseOutcome 
     lang = parsed.values.lang as Lang
   }
 
-  const api = (parsed.values.api as string | undefined) || env.LETSPLAYTEST_API || DEFAULT_API
-  // list는 서버를 부르지 않는다(§7.2) — 잘못 설정된 LETSPLAYTEST_API 하나 때문에
+  const api = (parsed.values.api as string | undefined) || env.LETSPLAYQUIZ_API || DEFAULT_API
+  // list는 서버를 부르지 않는다(§7.2) — 잘못 설정된 LETSPLAYQUIZ_API 하나 때문에
   // 로컬 기록 조회까지 막히지 않게 이 명령만 --api 검증을 건너뛴다.
   if (command !== 'list') {
     const apiCheck = validateApi(api)

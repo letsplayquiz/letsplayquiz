@@ -1,18 +1,34 @@
-# letsplaytest
+# letsplayquiz
 
-AI 에이전트가 [PlayTest](https://letsplayquiz.net) 테스트(점수형·유형형·밸런스·월드컵)를 만들고
-발행하는 CLI입니다. 설치 없이 `npx`로 바로 씁니다.
+AI 에이전트가 [LetsPlayQuiz](https://letsplayquiz.net) 테스트(점수형·유형형·밸런스·월드컵)를 만들고
+발행하는 CLI입니다. 설치 없이 `npx`로 바로 씁니다. 짧게 쓰려면 별칭 `lpqz`를 씁니다
+(`npx lpqz`로 시작하는 [연결 패키지](../lpqz/README.md)가 같은 CLI를 실행합니다).
 
 ## 시작하기
 
 ```sh
-npx letsplaytest guide --kind balance
+npx letsplayquiz guide --kind balance
+# 짧게: npx lpqz guide --kind balance
 ```
 
 이 명령이 종류별 규칙과 완성된 예시 JSON을 출력합니다. AI 에이전트에게는 이렇게 시킵니다:
 
-> `npx letsplaytest guide --kind balance`를 읽고 "짜장 vs 짬뽕" 테스트를 만들어서
-> `npx letsplaytest validate test.json`을 통과시킨 뒤 `npx letsplaytest publish test.json`으로 올려 줘.
+> `npx letsplayquiz guide --kind balance`를 읽고 "짜장 vs 짬뽕" 테스트를 만들어서
+> `npx letsplayquiz validate test.json`을 통과시킨 뒤 `npx letsplayquiz publish test.json`으로 올려 줘.
+
+## 전역 설치
+
+이 패키지는 `letsplayquiz` 명령 하나만 등록합니다. 짧은 이름 `lpqz`는 이 패키지가
+아니라 [연결 패키지 `lpqz`](../lpqz/README.md)가 등록합니다(같은 이름을 두 패키지가
+선언하면 전역 설치 시 `EEXIST`로 충돌하기 때문입니다).
+
+| 설치 | 실행 명령 |
+|---|---|
+| `npm i -g letsplayquiz` | `letsplayquiz` |
+| `npm i -g lpqz` | `lpqz` |
+
+(npm에 이 두 패키지를 새로 게시할 때의 순서는 [`packages/lpqz/README.md`](../lpqz/README.md)의
+"이 패키지를 게시할 때"를 본다 — `letsplayquiz`를 먼저 게시해야 한다.)
 
 ## 명령
 
@@ -25,13 +41,24 @@ npx letsplaytest guide --kind balance
 
 `file` 자리에 `-`를 주면 표준 입력에서 JSON을 읽습니다(파일 없이 파이프로 넘길 때 씁니다).
 
+## 필드(종류와 무관하게 공통)
+
+종류별 필드(`kind`, `questions`, `resultTypes` 등)는 `guide --kind <kind>`가 그때그때
+정확한 규칙과 예시로 알려줍니다. 아래는 모든 종류가 공통으로 쓰는, 생략 가능한 최상위 필드입니다.
+
+| 필드 | 설명 |
+|---|---|
+| `locale` | `ko`\|`ja`\|`en`. 생략하면 `ko`. 참여자가 보는 화면의 언어 |
+| `theme` | `classic`\|`mono`\|`candy`\|`ocean`\|`lemon`\|`mint`\|`grape`. 생략하면 `classic`. 참여·결과 화면의 꾸밈 |
+| `requestListing` | `boolean`. 생략하면 `false`. `true`면 운영자가 승인하거나 참여자가 충분히 모였을 때 메인 목록에 오를 수 있게 신청한다. 친구 이름처럼 사적인 내용이 있으면 신청하지 않는 편이 좋다 |
+
 ## 옵션
 
 | 옵션 | 설명 |
 |---|---|
 | `--json` | 서버 응답(또는 `list`의 기록)을 그대로 출력한다 |
-| `--lang ko\|ja\|en` | 서버 메시지 언어(쿼리 `lang`). 지금은 항상 한국어 메시지가 온다 |
-| `--api <url>` | 서버 주소. `https`만 허용한다(로컬 개발은 `http://localhost`, `http://127.0.0.1` 예외 — 그 밖의 `http`는 대시보드 링크가 평문으로 오갈 수 있어 거절한다). 환경변수 `LETSPLAYTEST_API`로도 설정한다(플래그가 우선). 기본값 `https://letsplayquiz.net` |
+| `--lang ko\|ja\|en` | 서버가 보내는 문장의 언어(쿼리 `lang`, 생략하면 `ko`) — 검사 결과·오류 메시지와 `guide` 설명서가 그 언어로 온다(단 `guide`의 예시 JSON은 항상 한국어). CLI가 직접 쓰는 안내 문구(연결 실패, 종료 안내 등)는 한국어다 |
+| `--api <url>` | 서버 주소. `https`만 허용한다(로컬 개발은 `http://localhost`, `http://127.0.0.1` 예외 — 그 밖의 `http`는 대시보드 링크가 평문으로 오갈 수 있어 거절한다). 환경변수 `LETSPLAYQUIZ_API`로도 설정한다(플래그가 우선). 기본값 `https://letsplayquiz.net` |
 | `--no-save` | `publish` 결과를 기록 파일에 남기지 않는다 |
 | `--help` | 도움말 출력 |
 | `--version` | 버전 출력 |
@@ -70,12 +97,13 @@ JSON이 아니거나 `ok` 필드가 없으면(프록시 오류 페이지 등) �
 
 5를 받으면 같은 내용으로 곧장 다시 `publish`하지 말고, 사용자에게 확인을 구하세요.
 `--json`이면 `{"ok":false,"error":{"code":"publish_unknown","message":"..."}}`에
-서버 원문 응답이 있으면 `raw` 필드로 같이 실어서, 사람이 그 안에서 직접 링크를
-찾아볼 수 있게 합니다.
+서버 원문 응답이 있으면 `raw` 필드로 같이 실어서(사람용 출력은 `원본 응답:` 줄), 사람이
+그 안에서 직접 참여 링크를 찾아볼 수 있게 합니다. 이 원문은 CI 로그에 남을 수 있어서
+대시보드 링크의 토큰(`/owner/…` 경로와 `ownerUrl` 값)은 `[redacted]`로 가려서 출력합니다.
 
 ## 대시보드 링크는 어디에 저장되나
 
-`publish`가 성공하면 `~/.config/letsplaytest/tests.jsonl`(`XDG_CONFIG_HOME`이 있으면 그
+`publish`가 성공하면 `~/.config/letsplayquiz/tests.jsonl`(`XDG_CONFIG_HOME`이 있으면 그
 아래)에 한 줄짜리 JSON(JSONL)으로 이어 붙입니다: `slug`, `title`, `kind`, `url`,
 `ownerUrl`, `api`, `publishedAt`. 이 파일과
 디렉터리는 각각 권한 `600`/`700`으로 만들어 같은 컴퓨터의 다른 사용자가 읽지 못하게
@@ -85,7 +113,7 @@ JSON이 아니거나 `ok` 필드가 없으면(프록시 오류 페이지 등) �
 Windows `FILE_APPEND_DATA` 등. NFS 같은 네트워크 파일시스템은 이 보장이 없지만
 이 CLI는 로컬 홈 디렉터리만 씁니다).
 
-`ownerUrl`(대시보드 링크)은 로그인 없는 PlayTest에서 창작자임을 증명하는 **유일한 수단**이라
+`ownerUrl`(대시보드 링크)은 로그인 없는 LetsPlayQuiz에서 창작자임을 증명하는 **유일한 수단**이라
 다시 발급받을 수 없습니다. `publish`는 성공 시 이 링크를 화면에도 출력합니다 — 만든 사람과
 그 사람의 AI 에이전트가 바로 받아 써야 하기 때문입니다. **CI 로그나 공유 터미널 세션에
 찍히면 남에게 보일 수 있으니, CI에서 자동 발행할 때는 로그 노출에 주의하세요.**
@@ -93,9 +121,9 @@ Windows `FILE_APPEND_DATA` 등. NFS 같은 네트워크 파일시스템은 이 �
 ## 예시
 
 ```sh
-npx letsplaytest guide --kind type --json > guide.json
+npx letsplayquiz guide --kind type --json > guide.json
 # ... AI가 guide.json을 읽고 test.json을 작성 ...
-npx letsplaytest validate test.json
-npx letsplaytest publish test.json
-npx letsplaytest list
+npx letsplayquiz validate test.json
+npx letsplayquiz publish test.json
+npx letsplayquiz list
 ```
