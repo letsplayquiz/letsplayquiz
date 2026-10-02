@@ -33,7 +33,11 @@ export function formatIssueLine(issue: unknown): string {
   const path = formatPath(obj.path)
   const code = typeof obj.code === 'string' ? obj.code : '?'
   const message = typeof obj.message === 'string' ? obj.message : ''
-  return `${path}  ${code}  ${message}`
+  // tie_unresolved만 typeKeys(동점 유형의 key)를 갖는다 — 사람도 바로 옮겨 적게 보여 준다.
+  const keys = Array.isArray(obj.typeKeys) && obj.typeKeys.length > 0 && obj.typeKeys.every((k) => typeof k === 'string')
+    ? `  [typeKeys: ${obj.typeKeys.join(', ')}]`
+    : ''
+  return `${path}  ${code}  ${message}${keys}`
 }
 
 export function formatIssues(issues: unknown[]): string {
