@@ -29,6 +29,16 @@ describe('formatPath', () => {
   })
 })
 
+describe('formatIssueLine typeKeys', () => {
+  it('typeKeys가 문자열 배열이면 줄 끝에 붙인다', () => {
+    expect(formatIssueLine({ code: 'tie_unresolved', message: 'm', path: ['tieResults'], typeKeys: ['a', 'b'] })).toBe('tieResults  tie_unresolved  m  [typeKeys: a, b]')
+  })
+  it('없거나 모양이 틀리면 붙이지 않는다', () => {
+    expect(formatIssueLine({ code: 'x', message: 'm', path: ['a'], typeKeys: 'a' })).toBe('a  x  m')
+    expect(formatIssueLine({ code: 'x', message: 'm', path: ['a'], typeKeys: [] })).toBe('a  x  m')
+  })
+})
+
 describe('formatIssueLine', () => {
   it('정상 모양은 경로  코드  메시지', () => {
     const line = formatIssueLine({ code: 'choice_no_weight', message: '가중치를 넣어 주세요', path: ['questions', 2] })
