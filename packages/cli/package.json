@@ -1,11 +1,42 @@
 {
   "name": "letsplayquiz",
   "version": "0.1.0",
-  "description": "AI 에이전트로 LetsPlayQuiz 테스트를 만들고 발행하는 CLI",
+  "description": "CLI for AI agents to create, validate and publish LetsPlayQuiz quizzes (score, type, balance, worldcup)",
+  "keywords": [
+    "quiz",
+    "personality-test",
+    "balance-game",
+    "world-cup",
+    "cli",
+    "ai-agent",
+    "claude",
+    "letsplayquiz"
+  ],
+  "author": "swewpapa",
+  "license": "MIT",
+  "homepage": "https://github.com/swewpapa/letsplayquiz#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/swewpapa/letsplayquiz.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/swewpapa/letsplayquiz/issues"
+  },
   "type": "module",
-  "bin": { "letsplayquiz": "dist/bin.js" },
-  "files": ["dist", "README.md"],
-  "engines": { "node": ">=20" },
-  "scripts": { "build": "tsc -p tsconfig.json", "prepublishOnly": "tsc -p tsconfig.json" },
-  "license": "MIT"
+  "bin": {
+    "letsplayquiz": "dist/bin.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "tsc -p tsconfig.json"
+  }
 }
