@@ -56,13 +56,60 @@ npx letsplayquiz list                   # 이 컴퓨터에서 발행한 테스�
 
 ## MCP 서버
 
-`letsplayquiz-mcp`는 셸 대신 MCP를 쓰는 에이전트를 위한 로컬 [MCP](https://modelcontextprotocol.io)(stdio) 서버입니다. 도구는 `get_guide`, `validate_quiz`, `publish_quiz`, `list_my_quizzes`이고, CLI와 같은 로직과 기록 파일을 씁니다.
+`letsplayquiz-mcp`는 셸 대신 MCP를 쓰는 에이전트를 위한 로컬 [MCP](https://modelcontextprotocol.io)(stdio) 서버입니다. CLI와 같은 로직과 기록 파일을 씁니다. Node.js 20 이상이 필요하고, MCP 클라이언트가 `npx`로 실행하므로 따로 설치할 필요는 없습니다.
+
+**Claude Code**
 
 ```sh
 claude mcp add letsplayquiz -- npx -y letsplayquiz-mcp
 ```
 
-Claude Desktop·Cursor 설정과 `LETSPLAYQUIZ_API` 변경 방법은 [`packages/mcp/README.md`](packages/mcp/README.md)(영어)에 있습니다. `publish_quiz`는 공개 테스트를 발행하므로 에이전트가 먼저 사용자에게 확인해야 합니다.
+**Claude Desktop** (`claude_desktop_config.json`)
+
+```json
+{
+  "mcpServers": {
+    "letsplayquiz": {
+      "command": "npx",
+      "args": ["-y", "letsplayquiz-mcp"]
+    }
+  }
+}
+```
+
+**Cursor** (`.cursor/mcp.json`, 모든 프로젝트에 쓰려면 `~/.cursor/mcp.json`)
+
+```json
+{
+  "mcpServers": {
+    "letsplayquiz": {
+      "command": "npx",
+      "args": ["-y", "letsplayquiz-mcp"]
+    }
+  }
+}
+```
+
+도구:
+
+| 도구 | 하는 일 |
+|---|---|
+| `get_guide` | 작성 가이드를 JSON으로 반환 (읽기 전용) |
+| `validate_quiz` | 저장하지 않고 검사. 검사 실패도 오류가 아닌 정상 결과로 돌려줍니다 (읽기 전용) |
+| `publish_quiz` | **공개** 퀴즈를 발행하고 `url`과 `ownerUrl`을 반환 |
+| `list_my_quizzes` | 이 컴퓨터에서 발행한 퀴즈를 최신순으로 반환 (서버 호출 없음). `ownerUrl`은 기본적으로 숨겨지며, `includeOwnerUrls: true`를 줘야 보입니다. 사용자가 대시보드 링크를 직접 요청할 때만 쓰세요 |
+
+`publish_quiz`는 공개 퀴즈를 발행하므로 에이전트가 먼저 사용자에게 확인해야 합니다. `ownerUrl`은 퀴즈 주인임을 증명하는 유일한 수단이고 다시 발급받을 수 없으니 비공개로 두세요.
+
+**발행이 타임아웃이나 전송 오류로 실패하고 결과가 없으면 "발행되었을 수도 있다"고 보고, 재시도하지 말고 사용자에게 물어보세요.** 결과를 알 수 없을 때 자동으로 다시 발행하면 같은 퀴즈가 중복될 수 있습니다.
+
+서버 주소는 환경 변수 `LETSPLAYQUIZ_API`로 바꿀 수 있습니다(기본값 `https://letsplayquiz.net`, `https`만 허용하며 `localhost`·`127.0.0.1`·`[::1]`에 한해 `http` 가능). 로컬 개발 서버 예시(Claude Code):
+
+```sh
+claude mcp add letsplayquiz -e LETSPLAYQUIZ_API=http://localhost:3100 -- npx -y letsplayquiz-mcp
+```
+
+자세한 내용은 [`packages/mcp/README.md`](packages/mcp/README.md)(영어)를 보세요.
 
 ## Claude 스킬
 
@@ -101,6 +148,8 @@ pnpm test     # vitest
 pnpm build    # 패키지 빌드
 pnpm smoke    # 빌드 후 로컬 모의 서버로 빌드된 CLI 실행
 ```
+
+npm 배포는 `letsplayquiz`를 먼저, 그다음 `lpqz`와 `letsplayquiz-mcp` 순서로 합니다(둘 다 `letsplayquiz`의 정확한 버전에 의존).
 
 퀴즈 규칙은 모두 서버가 갖습니다. CLI에서 규칙을 중복하거나 우회하지 마세요. 변경은 작게, 동작이 바뀌면 테스트도 더해 주세요.
 
