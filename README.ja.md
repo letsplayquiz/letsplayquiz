@@ -54,6 +54,16 @@ npx letsplayquiz list                   # このコンピューターで公開�
 
 `publish` は秘密のオーナーリンクを含む結果を `~/.config/letsplayquiz/tests.jsonl` (`XDG_CONFIG_HOME` があればその下) に制限付きの権限で記録し、画面にも出力します。オーナーリンクは再発行できないので秘密として扱い、CI のログへの露出に注意してください。
 
+## MCP サーバー
+
+`letsplayquiz-mcp` は、シェルの代わりに MCP を使うエージェント向けのローカル [MCP](https://modelcontextprotocol.io) (stdio) サーバーです。ツールは `get_guide`、`validate_quiz`、`publish_quiz`、`list_my_quizzes` で、CLI と同じロジックと履歴ファイルを使います。
+
+```sh
+claude mcp add letsplayquiz -- npx -y letsplayquiz-mcp
+```
+
+Claude Desktop・Cursor の設定と `LETSPLAYQUIZ_API` の上書き方法は [`packages/mcp/README.md`](packages/mcp/README.md) (英語) にあります。`publish_quiz` は公開クイズを発行するため、エージェントは先にユーザーへ確認する必要があります。
+
 ## Claude スキル
 
 `skills/letsplayquiz` は、簡単に質問してからクイズ JSON を書き、検査し、確認を取って公開する [Agent Skill](https://agentskills.io) です。

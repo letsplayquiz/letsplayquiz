@@ -1,13 +1,14 @@
 {
-  "name": "letsplayquiz",
+  "name": "letsplayquiz-mcp",
   "version": "0.1.0",
-  "description": "CLI for AI agents to create, validate and publish LetsPlayQuiz quizzes (score, type, balance, worldcup)",
+  "description": "Local MCP (stdio) server that lets AI agents create, validate and publish LetsPlayQuiz quizzes",
   "keywords": [
+    "mcp",
+    "model-context-protocol",
     "quiz",
     "personality-test",
     "balance-game",
     "world-cup",
-    "cli",
     "ai-agent",
     "claude",
     "letsplayquiz"
@@ -18,22 +19,14 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/letsplayquiz/letsplayquiz.git",
-    "directory": "packages/cli"
+    "directory": "packages/mcp"
   },
   "bugs": {
     "url": "https://github.com/letsplayquiz/letsplayquiz/issues"
   },
   "type": "module",
   "bin": {
-    "letsplayquiz": "dist/bin.js"
-  },
-  "exports": {
-    "./lib": {
-      "types": "./dist/lib.d.ts",
-      "default": "./dist/lib.js"
-    },
-    "./dist/bin.js": "./dist/bin.js",
-    "./package.json": "./package.json"
+    "letsplayquiz-mcp": "dist/bin.js"
   },
   "files": [
     "dist",
@@ -46,5 +39,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepublishOnly": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.0",
+    "letsplayquiz": "0.1.0",
+    "zod": "^4.0.0"
   }
 }

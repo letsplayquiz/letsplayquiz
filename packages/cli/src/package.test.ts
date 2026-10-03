@@ -48,6 +48,17 @@ describe('packages/cli package.json', () => {
     const exportsMap = pkg.exports as Record<string, unknown>
     expect(exportsMap['./dist/bin.js']).toBeDefined()
   })
+
+  // letsplayquiz-mcp가 `letsplayquiz/lib`로 판정 로직을 재사용한다. 의존성은 0개로 유지한다.
+  it('./lib와 ./package.json이 열려 있다', () => {
+    const exportsMap = pkg.exports as Record<string, unknown>
+    expect(exportsMap['./lib']).toBeDefined()
+    expect(exportsMap['./package.json']).toBe('./package.json')
+  })
+
+  it('런타임 의존성이 없다', () => {
+    expect(pkg.dependencies).toBeUndefined()
+  })
 })
 
 describe('packages/lpqz package.json', () => {

@@ -54,6 +54,16 @@ npx letsplayquiz list                   # 이 컴퓨터에서 발행한 테스�
 
 `publish`는 비밀 owner 링크를 포함한 결과를 `~/.config/letsplayquiz/tests.jsonl`(`XDG_CONFIG_HOME`이 있으면 그 아래)에 제한된 권한으로 남기고 화면에도 출력합니다. owner 링크는 다시 발급받을 수 없으니 비밀로 다루고, CI 로그 노출에 주의하세요.
 
+## MCP 서버
+
+`letsplayquiz-mcp`는 셸 대신 MCP를 쓰는 에이전트를 위한 로컬 [MCP](https://modelcontextprotocol.io)(stdio) 서버입니다. 도구는 `get_guide`, `validate_quiz`, `publish_quiz`, `list_my_quizzes`이고, CLI와 같은 로직과 기록 파일을 씁니다.
+
+```sh
+claude mcp add letsplayquiz -- npx -y letsplayquiz-mcp
+```
+
+Claude Desktop·Cursor 설정과 `LETSPLAYQUIZ_API` 변경 방법은 [`packages/mcp/README.md`](packages/mcp/README.md)(영어)에 있습니다. `publish_quiz`는 공개 테스트를 발행하므로 에이전트가 먼저 사용자에게 확인해야 합니다.
+
 ## Claude 스킬
 
 `skills/letsplayquiz`는 짧게 물어본 뒤 퀴즈 JSON을 쓰고, 검사하고, 확인을 받아 발행하는 [Agent Skill](https://agentskills.io)입니다.

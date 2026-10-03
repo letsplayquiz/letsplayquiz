@@ -54,6 +54,16 @@ Exit codes: `0` success, `1` validation failed, `2` usage error, `3` rate limite
 
 `publish` appends the result, including the secret owner link, to `~/.config/letsplayquiz/tests.jsonl` (under `XDG_CONFIG_HOME` if set) with restrictive permissions, and prints it. The owner link cannot be reissued, so treat it as a secret and be careful with CI logs.
 
+## MCP server
+
+`letsplayquiz-mcp` is a local [MCP](https://modelcontextprotocol.io) (stdio) server for agents that speak MCP instead of shelling out. Tools: `get_guide`, `validate_quiz`, `publish_quiz`, `list_my_quizzes`. It reuses the CLI logic and shares its history file.
+
+```sh
+claude mcp add letsplayquiz -- npx -y letsplayquiz-mcp
+```
+
+Configs for Claude Desktop and Cursor, and the `LETSPLAYQUIZ_API` override, are in [`packages/mcp/README.md`](packages/mcp/README.md). `publish_quiz` publishes a public quiz, so the agent should confirm with you first.
+
 ## Claude skill
 
 `skills/letsplayquiz` is an [Agent Skill](https://agentskills.io) that interviews you briefly, writes the quiz JSON, validates it and publishes it after you confirm.
@@ -89,8 +99,10 @@ Issues and pull requests are welcome. Development uses pnpm (see `packageManager
 pnpm install
 pnpm test     # vitest
 pnpm build    # compile packages
-pnpm smoke    # build + run the built CLI against a local mock server
+pnpm smoke    # build + run the built CLI and MCP server against a local mock server
 ```
+
+Publishing to npm: `letsplayquiz` first, then `lpqz` and `letsplayquiz-mcp` (both depend on the exact `letsplayquiz` version).
 
 The server owns all quiz rules; the CLI must not duplicate or bypass them. Please keep changes small and add tests for behavior changes.
 

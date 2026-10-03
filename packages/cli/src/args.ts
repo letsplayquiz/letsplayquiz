@@ -59,7 +59,7 @@ const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
  * 돌려준다(다른 호스트명과 달리 IPv6 리터럴은 대괄호가 hostname의 일부다) —
  * 그래서 목록도 대괄호를 포함한 값으로 둔다.
  */
-function validateApi(raw: string): { ok: true } | { ok: false; message: string } {
+export function validateApi(raw: string): { ok: true } | { ok: false; message: string } {
   let url: URL
   try {
     url = new URL(raw)
