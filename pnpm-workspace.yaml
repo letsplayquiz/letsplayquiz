@@ -1,0 +1,9 @@
+packages:
+  - 'packages/*'
+
+# packages/lpqz는 workspace: 프로토콜 없이 정확한 버전 문자열로 letsplayquiz에
+# 의존한다 — npm에 올려도 그대로 통하는 평범한 semver 의존성처럼 보이게 하려는
+# 의도다. pnpm이 이 버전을 레지스트리가 아니라 워크스페이스 안의 packages/cli에서
+# 찾아 링크하려면 이 설정이 필요하다(기본값 false). pnpm 11에서는 .npmrc의
+# link-workspace-packages가 아니라 여기(pnpm-workspace.yaml)에 둬야 실제로 적용된다.
+linkWorkspacePackages: true
