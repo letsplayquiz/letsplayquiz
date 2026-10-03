@@ -56,16 +56,26 @@ npx letsplayquiz list                   # 이 컴퓨터에서 발행한 테스�
 
 ## Claude 스킬
 
-`skills/letsplayquiz`는 짧게 물어본 뒤 퀴즈 JSON을 쓰고, 검사하고, 확인을 받아 발행하는 [Claude Code 스킬](https://docs.claude.com/en/docs/claude-code/skills)입니다. 폴더를 스킬 디렉터리에 심볼릭 링크(또는 복사)해서 설치합니다.
+`skills/letsplayquiz`는 짧게 물어본 뒤 퀴즈 JSON을 쓰고, 검사하고, 확인을 받아 발행하는 [Agent Skill](https://agentskills.io)입니다.
+
+**Claude Code** (플러그인 마켓플레이스):
 
 ```sh
-git clone https://github.com/letsplayquiz/letsplayquiz.git
-mkdir -p ~/.claude/skills
-ln -s "$PWD/letsplayquiz/skills/letsplayquiz" ~/.claude/skills/letsplayquiz
-# 또는: cp -R letsplayquiz/skills/letsplayquiz ~/.claude/skills/
+claude plugin marketplace add letsplayquiz/letsplayquiz
+claude plugin install letsplayquiz@letsplayquiz
 ```
 
-그 뒤 Claude Code에 "라면 밸런스 게임 만들어 줘"처럼 말하면 됩니다.
+세션 안에서는 `/plugin marketplace add letsplayquiz/letsplayquiz`, `/plugin install letsplayquiz@letsplayquiz`로도 됩니다.
+
+**다른 에이전트** (Codex, Cursor, GitHub Copilot, Gemini CLI 등, 공개 설치 도구 [`skills`](https://www.npmjs.com/package/skills)):
+
+```sh
+npx skills add letsplayquiz/letsplayquiz
+```
+
+**Claude.ai / Claude 데스크톱 앱**: `skills/letsplayquiz` 폴더를 ZIP으로 압축해 Claude 설정에서 스킬로 업로드합니다.
+
+그 뒤 "라면 밸런스 게임 만들어 줘"처럼 말하면 됩니다.
 
 ## API
 

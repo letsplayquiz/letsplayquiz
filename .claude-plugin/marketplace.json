@@ -1,0 +1,12 @@
+{
+  "name": "letsplayquiz",
+  "description": "Official LetsPlayQuiz plugins for Claude Code",
+  "owner": { "name": "LetsPlayQuiz", "url": "https://letsplayquiz.net" },
+  "plugins": [
+    {
+      "name": "letsplayquiz",
+      "source": "./",
+      "description": "Make, validate and publish LetsPlayQuiz quizzes with the letsplayquiz CLI"
+    }
+  ]
+}

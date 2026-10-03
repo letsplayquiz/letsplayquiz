@@ -1,0 +1,10 @@
+{
+  "name": "letsplayquiz",
+  "version": "0.1.0",
+  "description": "Make a shareable LetsPlayQuiz quiz with your AI agent (friendship quiz, personality test, balance game, bracket world cup), then validate and publish it with the letsplayquiz CLI.",
+  "author": { "name": "LetsPlayQuiz", "url": "https://letsplayquiz.net" },
+  "homepage": "https://github.com/letsplayquiz/letsplayquiz#readme",
+  "repository": "https://github.com/letsplayquiz/letsplayquiz",
+  "license": "MIT",
+  "keywords": ["quiz", "personality-test", "balance-game", "world-cup", "cli"]
+}

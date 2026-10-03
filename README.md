@@ -56,16 +56,26 @@ Exit codes: `0` success, `1` validation failed, `2` usage error, `3` rate limite
 
 ## Claude skill
 
-`skills/letsplayquiz` is a [Claude Code skill](https://docs.claude.com/en/docs/claude-code/skills) that interviews you briefly, writes the quiz JSON, validates it and publishes it after you confirm. Install it by symlinking (or copying) the folder into your skills directory:
+`skills/letsplayquiz` is an [Agent Skill](https://agentskills.io) that interviews you briefly, writes the quiz JSON, validates it and publishes it after you confirm.
+
+**Claude Code** (plugin marketplace):
 
 ```sh
-git clone https://github.com/letsplayquiz/letsplayquiz.git
-mkdir -p ~/.claude/skills
-ln -s "$PWD/letsplayquiz/skills/letsplayquiz" ~/.claude/skills/letsplayquiz
-# or: cp -R letsplayquiz/skills/letsplayquiz ~/.claude/skills/
+claude plugin marketplace add letsplayquiz/letsplayquiz
+claude plugin install letsplayquiz@letsplayquiz
 ```
 
-Then ask Claude Code something like "make a this-or-that quiz about ramen".
+Inside a session you can run `/plugin marketplace add letsplayquiz/letsplayquiz` and `/plugin install letsplayquiz@letsplayquiz` instead.
+
+**Other agents** (Codex, Cursor, GitHub Copilot, Gemini CLI, … via the open [`skills`](https://www.npmjs.com/package/skills) installer):
+
+```sh
+npx skills add letsplayquiz/letsplayquiz
+```
+
+**Claude.ai / Claude desktop app**: zip the `skills/letsplayquiz` folder and upload it as a skill in Claude's settings.
+
+Then ask something like "make a this-or-that quiz about ramen".
 
 ## API
 

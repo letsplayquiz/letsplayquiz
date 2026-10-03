@@ -56,16 +56,26 @@ npx letsplayquiz list                   # このコンピューターで公開�
 
 ## Claude スキル
 
-`skills/letsplayquiz` は、簡単に質問してからクイズ JSON を書き、検査し、確認を取って公開する [Claude Code スキル](https://docs.claude.com/en/docs/claude-code/skills)です。フォルダをスキルのディレクトリにシンボリックリンク(またはコピー)してインストールします。
+`skills/letsplayquiz` は、簡単に質問してからクイズ JSON を書き、検査し、確認を取って公開する [Agent Skill](https://agentskills.io) です。
+
+**Claude Code**(プラグインマーケットプレイス):
 
 ```sh
-git clone https://github.com/letsplayquiz/letsplayquiz.git
-mkdir -p ~/.claude/skills
-ln -s "$PWD/letsplayquiz/skills/letsplayquiz" ~/.claude/skills/letsplayquiz
-# または: cp -R letsplayquiz/skills/letsplayquiz ~/.claude/skills/
+claude plugin marketplace add letsplayquiz/letsplayquiz
+claude plugin install letsplayquiz@letsplayquiz
 ```
 
-そのあと Claude Code に「ラーメンのバランスゲームを作って」のように頼めば使えます。
+セッション内では `/plugin marketplace add letsplayquiz/letsplayquiz`、`/plugin install letsplayquiz@letsplayquiz` でも使えます。
+
+**ほかのエージェント**(Codex、Cursor、GitHub Copilot、Gemini CLI など。オープンなインストーラー [`skills`](https://www.npmjs.com/package/skills) を使います):
+
+```sh
+npx skills add letsplayquiz/letsplayquiz
+```
+
+**Claude.ai / Claude デスクトップアプリ**: `skills/letsplayquiz` フォルダを ZIP にして、Claude の設定からスキルとしてアップロードします。
+
+そのあと「ラーメンのバランスゲームを作って」のように頼めば使えます。
 
 ## API
 
