@@ -7,6 +7,3 @@ packages:
 # 찾아 링크하려면 이 설정이 필요하다(기본값 false). pnpm 11에서는 .npmrc의
 # link-workspace-packages가 아니라 여기(pnpm-workspace.yaml)에 둬야 실제로 적용된다.
 linkWorkspacePackages: true
-
-minimumReleaseAgeExclude:
-  - '@modelcontextprotocol/sdk@1.32.0'
