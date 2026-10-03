@@ -1,11 +1,11 @@
 ---
 name: letsplayquiz
-description: Make a shareable LetsPlayQuiz quiz together with the user — a friendship quiz, personality test ("which X are you?"), this-or-that balance game, or bracket "world cup" — then validate and publish it with the `letsplayquiz` CLI and hand back the share link. Use this whenever someone wants to create, draft, or publish a quiz, test, poll-style game, 밸런스 게임, 성격/유형 테스트, 우정 테스트, 이상형 월드컵, or 心理テスト/診断 to send to friends, even if they don't say "LetsPlayQuiz" or name a quiz type, and whenever they mention letsplayquiz.net, `npx letsplayquiz`, or `lpqz`.
+description: Make a shareable LetsPlayQuiz quiz together with the user — a friendship quiz, personality test ("which X are you?"), this-or-that balance game, or bracket "world cup" — then validate and publish it with the `letsplayquiz` CLI and hand back the share link. Use this whenever someone wants to create, draft, or publish a quiz, test, poll-style game, 밸런스 게임, 성격/유형 테스트, 우정 테스트, 이상형 월드컵, or 心理テスト/診断 to send to friends, even if they don't say "LetsPlayQuiz" or name a quiz type, and whenever they mention letsplayquiz-net.vercel.app, `npx letsplayquiz`, or `lpqz`.
 ---
 
 # Make a LetsPlayQuiz quiz with the user
 
-LetsPlayQuiz (https://letsplayquiz.net) turns one link into a quiz friends can play on their phones. The `letsplayquiz` CLI (alias `lpqz`, run with `npx`, nothing to install) talks to its public API: the **server owns every rule**, the CLI never bypasses them. Your job is the part the server can't do: turn a vague idea into a fun, well-balanced quiz the user actually likes, with as little back-and-forth as possible, and publish only when they say so.
+LetsPlayQuiz (https://letsplayquiz-net.vercel.app) turns one link into a quiz friends can play on their phones. The `letsplayquiz` CLI (alias `lpqz`, run with `npx`, nothing to install) talks to its public API: the **server owns every rule**, the CLI never bypasses them. Your job is the part the server can't do: turn a vague idea into a fun, well-balanced quiz the user actually likes, with as little back-and-forth as possible, and publish only when they say so.
 
 The flow:
 
@@ -46,7 +46,7 @@ npx letsplayquiz guide --kind <kind>
 
 This prints the current field limits, the kind's rules (question/choice/result counts, how weights work) and a complete example that passes validation. Read it every time instead of relying on memory: the server's rules are the source of truth and can change. Add `--lang ja` or `--lang en` to get the explanations in that language — the example JSON follows `--lang` too (its `locale` and text are in that language), so copying it keeps the quiz in the language the user is working in.
 
-Server address: the CLI defaults to `https://letsplayquiz.net`. Use `--api <url>` (or the `LETSPLAYQUIZ_API` env var) only when the user points you at another server, e.g. a local dev server.
+Server address: the CLI defaults to `https://letsplayquiz-net.vercel.app`. Use `--api <url>` (or the `LETSPLAYQUIZ_API` env var) only when the user points you at another server, e.g. a local dev server.
 
 ## 3. Write the whole draft, show it readable
 

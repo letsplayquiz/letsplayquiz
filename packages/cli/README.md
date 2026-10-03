@@ -1,6 +1,6 @@
 # letsplayquiz
 
-AI 에이전트가 [LetsPlayQuiz](https://letsplayquiz.net) 테스트(점수형·유형형·밸런스·월드컵)를 만들고
+AI 에이전트가 [LetsPlayQuiz](https://letsplayquiz-net.vercel.app) 테스트(점수형·유형형·밸런스·월드컵)를 만들고
 발행하는 CLI입니다. 설치 없이 `npx`로 바로 씁니다. 짧게 쓰려면 별칭 `lpqz`를 씁니다
 (`npx lpqz`로 시작하는 [연결 패키지](../lpqz/README.md)가 같은 CLI를 실행합니다).
 
@@ -58,7 +58,7 @@ npx letsplayquiz guide --kind balance
 |---|---|
 | `--json` | 서버 응답(또는 `list`의 기록)을 그대로 출력한다 |
 | `--lang ko\|ja\|en` | 서버가 보내는 문장의 언어(쿼리 `lang`, 생략하면 `ko`) — 검사 결과·오류 메시지와 `guide` 설명서가 그 언어로 온다(단 `guide`의 예시 JSON은 항상 한국어). CLI가 직접 쓰는 안내 문구(연결 실패, 종료 안내 등)는 한국어다 |
-| `--api <url>` | 서버 주소. `https`만 허용한다(로컬 개발은 `http://localhost`, `http://127.0.0.1` 예외 — 그 밖의 `http`는 대시보드 링크가 평문으로 오갈 수 있어 거절한다). 환경변수 `LETSPLAYQUIZ_API`로도 설정한다(플래그가 우선). 기본값 `https://letsplayquiz.net` |
+| `--api <url>` | 서버 주소. `https`만 허용한다(로컬 개발은 `http://localhost`, `http://127.0.0.1` 예외 — 그 밖의 `http`는 대시보드 링크가 평문으로 오갈 수 있어 거절한다). 환경변수 `LETSPLAYQUIZ_API`로도 설정한다(플래그가 우선). 기본값 `https://letsplayquiz-net.vercel.app` |
 | `--no-save` | `publish` 결과를 기록 파일에 남기지 않는다 |
 | `--help` | 도움말 출력 |
 | `--version` | 버전 출력 |
