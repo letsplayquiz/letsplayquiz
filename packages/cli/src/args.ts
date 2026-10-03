@@ -10,7 +10,7 @@ export type Kind = (typeof KINDS)[number]
 export const LANGS = ['ko', 'ja', 'en'] as const
 export type Lang = (typeof LANGS)[number]
 
-export const DEFAULT_API = 'https://letsplayquiz-net.vercel.app'
+export const DEFAULT_API = 'https://letsplayquiz.net'
 
 export type Command = 'guide' | 'validate' | 'publish' | 'list'
 

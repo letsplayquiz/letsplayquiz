@@ -2,7 +2,7 @@
 
 [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md)
 
-[LetsPlayQuiz](https://letsplayquiz-net.vercel.app)는 링크 하나로 친구들이 휴대폰에서 풀 수 있는 퀴즈를 만들어 주는 서비스입니다. 이 저장소에는 공개 API를 둘러싼 도구가 들어 있어서, AI 에이전트(그리고 당신)가 터미널에서 퀴즈를 만들고 발행할 수 있습니다.
+[LetsPlayQuiz](https://letsplayquiz.net)는 링크 하나로 친구들이 휴대폰에서 풀 수 있는 퀴즈를 만들어 주는 서비스입니다. 이 저장소에는 공개 API를 둘러싼 도구가 들어 있어서, AI 에이전트(그리고 당신)가 터미널에서 퀴즈를 만들고 발행할 수 있습니다.
 
 - **`letsplayquiz`** (`packages/cli`): 명령줄 클라이언트
 - **`lpqz`** (`packages/lpqz`): 같은 CLI를 실행하는 짧은 별칭 패키지 (`npx lpqz ...`)
@@ -46,7 +46,7 @@ npx letsplayquiz list                   # 이 컴퓨터에서 발행한 테스�
 |---|---|
 | `--json` | 서버 응답(또는 `list`의 기록)을 그대로 출력 |
 | `--lang ko\|ja\|en` | 서버 메시지 언어(쿼리 `lang`), 기본 `ko` |
-| `--api <url>` | 서버 주소. `https`만 허용(로컬 개발은 `http://localhost`, `http://127.0.0.1` 예외). 환경변수 `LETSPLAYQUIZ_API`로도 설정(플래그가 우선). 기본값 `https://letsplayquiz-net.vercel.app` |
+| `--api <url>` | 서버 주소. `https`만 허용(로컬 개발은 `http://localhost`, `http://127.0.0.1` 예외). 환경변수 `LETSPLAYQUIZ_API`로도 설정(플래그가 우선). 기본값 `https://letsplayquiz.net` |
 | `--no-save` | `publish` 결과를 로컬 기록에 남기지 않음 |
 | `--help`, `--version` | 도움말 / 버전 |
 
@@ -59,7 +59,7 @@ npx letsplayquiz list                   # 이 컴퓨터에서 발행한 테스�
 `skills/letsplayquiz`는 짧게 물어본 뒤 퀴즈 JSON을 쓰고, 검사하고, 확인을 받아 발행하는 [Claude Code 스킬](https://docs.claude.com/en/docs/claude-code/skills)입니다. 폴더를 스킬 디렉터리에 심볼릭 링크(또는 복사)해서 설치합니다.
 
 ```sh
-git clone https://github.com/swewpapa/letsplayquiz.git
+git clone https://github.com/letsplayquiz/letsplayquiz.git
 mkdir -p ~/.claude/skills
 ln -s "$PWD/letsplayquiz/skills/letsplayquiz" ~/.claude/skills/letsplayquiz
 # 또는: cp -R letsplayquiz/skills/letsplayquiz ~/.claude/skills/

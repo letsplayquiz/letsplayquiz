@@ -4,7 +4,7 @@ This is the HTTP contract that the [`letsplayquiz` CLI](../packages/cli) uses. Y
 
 ## Basics
 
-- **Base URL:** `https://letsplayquiz-net.vercel.app` (the CLI default; override with `--api`). All paths below are relative to it.
+- **Base URL:** `https://letsplayquiz.net` (the CLI default; override with `--api`). All paths below are relative to it.
 - **Format:** JSON in, JSON out. Requests with a body must send `Content-Type: application/json` (a `charset` parameter is fine). The body must be valid UTF-8 and at most **64 KiB**.
 - **No authentication.** Creating a quiz needs no account. Ownership of a published quiz is proven only by the secret owner URL returned on publish.
 - **Language:** every endpoint accepts `?lang=ko|ja|en` (unknown or missing values mean `ko`). It only changes the language of `message` text and the `lang` field in responses; `code`, `path` and HTTP statuses never depend on it.
@@ -64,8 +64,8 @@ Runs the same checks, then publishes. Success is `201`:
   "ok": true,
   "lang": "en",
   "slug": "ab12cd34",
-  "url": "https://letsplayquiz-net.vercel.app/t/ab12cd34",
-  "ownerUrl": "https://letsplayquiz-net.vercel.app/t/ab12cd34/owner/<secret>",
+  "url": "https://letsplayquiz.net/t/ab12cd34",
+  "ownerUrl": "https://letsplayquiz.net/t/ab12cd34/owner/<secret>",
   "listing": "none",
   "warnings": []
 }
@@ -184,7 +184,7 @@ Rate limiting applies per client address, separately to validating and to publis
 ## Example
 
 ```sh
-curl -sS 'https://letsplayquiz-net.vercel.app/api/v1/tests/validate?lang=en' \
+curl -sS 'https://letsplayquiz.net/api/v1/tests/validate?lang=en' \
   -H 'Content-Type: application/json' \
   -d '{
     "kind": "balance",

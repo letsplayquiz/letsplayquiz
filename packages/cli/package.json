@@ -14,14 +14,14 @@
   ],
   "author": "swewpapa",
   "license": "MIT",
-  "homepage": "https://github.com/swewpapa/letsplayquiz#readme",
+  "homepage": "https://github.com/letsplayquiz/letsplayquiz#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/swewpapa/letsplayquiz.git",
+    "url": "git+https://github.com/letsplayquiz/letsplayquiz.git",
     "directory": "packages/cli"
   },
   "bugs": {
-    "url": "https://github.com/swewpapa/letsplayquiz/issues"
+    "url": "https://github.com/letsplayquiz/letsplayquiz/issues"
   },
   "type": "module",
   "bin": {

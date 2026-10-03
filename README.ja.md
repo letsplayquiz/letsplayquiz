@@ -2,7 +2,7 @@
 
 [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md)
 
-[LetsPlayQuiz](https://letsplayquiz-net.vercel.app) は、リンク1つで友だちがスマホで遊べるクイズを作れるサービスです。このリポジトリには公開 API まわりのツールが入っていて、AI エージェント(とあなた)がターミナルからクイズを作って公開できます。
+[LetsPlayQuiz](https://letsplayquiz.net) は、リンク1つで友だちがスマホで遊べるクイズを作れるサービスです。このリポジトリには公開 API まわりのツールが入っていて、AI エージェント(とあなた)がターミナルからクイズを作って公開できます。
 
 - **`letsplayquiz`** (`packages/cli`): コマンドラインクライアント
 - **`lpqz`** (`packages/lpqz`): 同じ CLI を実行する短い別名パッケージ (`npx lpqz ...`)
@@ -46,7 +46,7 @@ npx letsplayquiz list                   # このコンピューターで公開�
 |---|---|
 | `--json` | サーバーの応答 (または `list` の記録) をそのまま出力 |
 | `--lang ko\|ja\|en` | サーバーメッセージの言語 (クエリ `lang`)、既定は `ko` |
-| `--api <url>` | サーバーの URL。`https` のみ可 (ローカル開発は `http://localhost`、`http://127.0.0.1` が例外)。環境変数 `LETSPLAYQUIZ_API` でも指定可 (フラグが優先)。既定値 `https://letsplayquiz-net.vercel.app` |
+| `--api <url>` | サーバーの URL。`https` のみ可 (ローカル開発は `http://localhost`、`http://127.0.0.1` が例外)。環境変数 `LETSPLAYQUIZ_API` でも指定可 (フラグが優先)。既定値 `https://letsplayquiz.net` |
 | `--no-save` | `publish` の結果をローカルに記録しない |
 | `--help`, `--version` | ヘルプ / バージョン |
 
@@ -59,7 +59,7 @@ npx letsplayquiz list                   # このコンピューターで公開�
 `skills/letsplayquiz` は、簡単に質問してからクイズ JSON を書き、検査し、確認を取って公開する [Claude Code スキル](https://docs.claude.com/en/docs/claude-code/skills)です。フォルダをスキルのディレクトリにシンボリックリンク(またはコピー)してインストールします。
 
 ```sh
-git clone https://github.com/swewpapa/letsplayquiz.git
+git clone https://github.com/letsplayquiz/letsplayquiz.git
 mkdir -p ~/.claude/skills
 ln -s "$PWD/letsplayquiz/skills/letsplayquiz" ~/.claude/skills/letsplayquiz
 # または: cp -R letsplayquiz/skills/letsplayquiz ~/.claude/skills/

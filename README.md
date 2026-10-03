@@ -2,7 +2,7 @@
 
 [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md)
 
-[LetsPlayQuiz](https://letsplayquiz-net.vercel.app) turns one link into a quiz your friends can play on their phones. This repository holds the tools around its public API, so AI agents (and you) can create and publish quizzes from the terminal:
+[LetsPlayQuiz](https://letsplayquiz.net) turns one link into a quiz your friends can play on their phones. This repository holds the tools around its public API, so AI agents (and you) can create and publish quizzes from the terminal:
 
 - **`letsplayquiz`** (`packages/cli`): the command-line client.
 - **`lpqz`** (`packages/lpqz`): a short alias package that runs the same CLI (`npx lpqz ...`).
@@ -46,7 +46,7 @@ npx letsplayquiz list                   # tests published from this computer
 |---|---|
 | `--json` | Print the server response (or the `list` records) as-is |
 | `--lang ko\|ja\|en` | Language of server messages (`lang` query); default `ko` |
-| `--api <url>` | Server URL. `https` only (`http://localhost` and `http://127.0.0.1` are allowed for local development). Also settable with the `LETSPLAYQUIZ_API` environment variable (the flag wins). Default `https://letsplayquiz-net.vercel.app` |
+| `--api <url>` | Server URL. `https` only (`http://localhost` and `http://127.0.0.1` are allowed for local development). Also settable with the `LETSPLAYQUIZ_API` environment variable (the flag wins). Default `https://letsplayquiz.net` |
 | `--no-save` | Do not record the `publish` result locally |
 | `--help`, `--version` | Help / version |
 
@@ -59,7 +59,7 @@ Exit codes: `0` success, `1` validation failed, `2` usage error, `3` rate limite
 `skills/letsplayquiz` is a [Claude Code skill](https://docs.claude.com/en/docs/claude-code/skills) that interviews you briefly, writes the quiz JSON, validates it and publishes it after you confirm. Install it by symlinking (or copying) the folder into your skills directory:
 
 ```sh
-git clone https://github.com/swewpapa/letsplayquiz.git
+git clone https://github.com/letsplayquiz/letsplayquiz.git
 mkdir -p ~/.claude/skills
 ln -s "$PWD/letsplayquiz/skills/letsplayquiz" ~/.claude/skills/letsplayquiz
 # or: cp -R letsplayquiz/skills/letsplayquiz ~/.claude/skills/
