@@ -1,129 +1,106 @@
 # letsplayquiz
 
-AI 에이전트가 [LetsPlayQuiz](https://letsplayquiz.net) 테스트(점수형·유형형·밸런스·월드컵)를 만들고
-발행하는 CLI입니다. 설치 없이 `npx`로 바로 씁니다. 짧게 쓰려면 별칭 `lpqz`를 씁니다
-(`npx lpqz`로 시작하는 [연결 패키지](../lpqz/README.md)가 같은 CLI를 실행합니다).
+A CLI for AI agents to create and publish [LetsPlayQuiz](https://letsplayquiz.net) quizzes (score, personality type, balance game, and bracket "world cup"). Run it with `npx`, no install needed. For a shorter name use the alias `lpqz` (the [`lpqz` package](https://www.npmjs.com/package/lpqz) runs this same CLI).
 
-## 시작하기
+Source, issues, the Claude skill and the full API reference live at [github.com/letsplayquiz/letsplayquiz](https://github.com/letsplayquiz/letsplayquiz).
+
+## Getting started
 
 ```sh
 npx letsplayquiz guide --kind balance
-# 짧게: npx lpqz guide --kind balance
+# shorter: npx lpqz guide --kind balance
 ```
 
-이 명령이 종류별 규칙과 완성된 예시 JSON을 출력합니다. AI 에이전트에게는 이렇게 시킵니다:
+This prints the rules for that quiz kind plus a complete example JSON that passes validation. Then ask your AI agent something like:
 
-> `npx letsplayquiz guide --kind balance`를 읽고 "짜장 vs 짬뽕" 테스트를 만들어서
-> `npx letsplayquiz validate test.json`을 통과시킨 뒤 `npx letsplayquiz publish test.json`으로 올려 줘.
+> Read `npx letsplayquiz guide --kind balance`, write a "pizza vs burgers" quiz, make it pass
+> `npx letsplayquiz validate test.json`, then publish it with `npx letsplayquiz publish test.json`.
 
-## 전역 설치
+## Global install
 
-이 패키지는 `letsplayquiz` 명령 하나만 등록합니다. 짧은 이름 `lpqz`는 이 패키지가
-아니라 [연결 패키지 `lpqz`](../lpqz/README.md)가 등록합니다(같은 이름을 두 패키지가
-선언하면 전역 설치 시 `EEXIST`로 충돌하기 때문입니다).
+This package registers only the `letsplayquiz` command. The short `lpqz` command is registered by the separate [`lpqz`](https://www.npmjs.com/package/lpqz) package (two packages declaring the same bin name would collide with `EEXIST` on global install).
 
-| 설치 | 실행 명령 |
+| Install | Command |
 |---|---|
 | `npm i -g letsplayquiz` | `letsplayquiz` |
 | `npm i -g lpqz` | `lpqz` |
 
-(npm에 이 두 패키지를 새로 게시할 때의 순서는 [`packages/lpqz/README.md`](../lpqz/README.md)의
-"이 패키지를 게시할 때"를 본다 — `letsplayquiz`를 먼저 게시해야 한다.)
+## Commands
 
-## 명령
-
-| 명령 | 설명 |
+| Command | Description |
 |---|---|
-| `guide [--kind score\|type\|balance\|worldcup]` | 설명서를 출력한다(생략하면 전부) |
-| `validate <file \| ->` | 저장하지 않고 검사만 한다 |
-| `publish <file \| ->` | 검사를 통과하면 발행한다 |
-| `list` | 이 컴퓨터에서 발행한 테스트를 최근 순으로 보여 준다(서버를 부르지 않는다) |
+| `guide [--kind score\|type\|balance\|worldcup]` | Print the guide (all kinds if omitted) |
+| `validate <file \| ->` | Check a quiz without saving it |
+| `publish <file \| ->` | Publish a quiz once it passes validation |
+| `list` | Show quizzes published from this computer, newest first (does not call the server) |
 
-`file` 자리에 `-`를 주면 표준 입력에서 JSON을 읽습니다(파일 없이 파이프로 넘길 때 씁니다).
+Pass `-` instead of a file to read JSON from standard input.
 
-## 필드(종류와 무관하게 공통)
+## Common fields (all kinds)
 
-종류별 필드(`kind`, `questions`, `resultTypes` 등)는 `guide --kind <kind>`가 그때그때
-정확한 규칙과 예시로 알려줍니다. 아래는 모든 종류가 공통으로 쓰는, 생략 가능한 최상위 필드입니다.
+Kind-specific fields (`kind`, `questions`, `resultTypes`, …) are described with exact rules and examples by `guide --kind <kind>`. These optional top-level fields apply to every kind:
 
-| 필드 | 설명 |
+| Field | Description |
 |---|---|
-| `locale` | `ko`\|`ja`\|`en`. 생략하면 `ko`. 참여자가 보는 화면의 언어 |
-| `theme` | `classic`\|`mono`\|`candy`\|`ocean`\|`lemon`\|`mint`\|`grape`. 생략하면 `classic`. 참여·결과 화면의 꾸밈 |
-| `requestListing` | `boolean`. 생략하면 `false`. `true`면 운영자가 승인하거나 참여자가 충분히 모였을 때 메인 목록에 오를 수 있게 신청한다. 친구 이름처럼 사적인 내용이 있으면 신청하지 않는 편이 좋다 |
+| `locale` | `ko`\|`ja`\|`en`. Defaults to `ko`. The language players see |
+| `theme` | `classic`\|`mono`\|`candy`\|`ocean`\|`lemon`\|`mint`\|`grape`. Defaults to `classic`. Look of the play and result pages |
+| `requestListing` | `boolean`, default `false`. If `true`, the quiz may appear on the public home page once an operator approves it or enough people have played. Leave it off for private content such as friends' names |
 
-## 옵션
+## Options
 
-| 옵션 | 설명 |
+| Option | Description |
 |---|---|
-| `--json` | 서버 응답(또는 `list`의 기록)을 그대로 출력한다 |
-| `--lang ko\|ja\|en` | 서버가 보내는 문장의 언어(쿼리 `lang`, 생략하면 `ko`) — 검사 결과·오류 메시지와 `guide` 설명서가 그 언어로 온다(단 `guide`의 예시 JSON은 항상 한국어). CLI가 직접 쓰는 안내 문구(연결 실패, 종료 안내 등)는 한국어다 |
-| `--api <url>` | 서버 주소. `https`만 허용한다(로컬 개발은 `http://localhost`, `http://127.0.0.1` 예외 — 그 밖의 `http`는 대시보드 링크가 평문으로 오갈 수 있어 거절한다). 환경변수 `LETSPLAYQUIZ_API`로도 설정한다(플래그가 우선). 기본값 `https://letsplayquiz.net` |
-| `--no-save` | `publish` 결과를 기록 파일에 남기지 않는다 |
-| `--help` | 도움말 출력 |
-| `--version` | 버전 출력 |
+| `--json` | Print the raw server response (or the `list` records) |
+| `--lang ko\|ja\|en` | Language of server text (query `lang`, default `ko`): validation messages, errors, and the `guide` text and examples. The CLI's own messages (connection failures, exit hints) are currently in Korean |
+| `--api <url>` | Server URL. `https` only (`http://localhost` and `http://127.0.0.1` are allowed for local development; other `http` URLs are refused because the dashboard link would travel in plain text). Also settable with the `LETSPLAYQUIZ_API` environment variable (the flag wins). Default `https://letsplayquiz.net` |
+| `--no-save` | Do not record the `publish` result in the local history file |
+| `--help` | Show help |
+| `--version` | Show version |
 
-## 종료 코드
+## Exit codes
 
-| 코드 | 의미 | 다음 행동 |
+| Code | Meaning | What to do next |
 |---|---|---|
-| 0 | 성공(경고만 있어도) | 다음 단계 |
-| 1 | 검사 실패(`validation_failed`) | 고쳐서 다시 |
-| 2 | 사용법 오류, 파일 없음, 로컬 JSON 파싱 실패 | 명령을 고침 |
-| 3 | 요청 제한(`rate_limited`) | 표시된 시간만큼 기다림 |
-| 4 | 네트워크·서버 오류(발행 안 됨이 확실함) | 나중에 다시 |
-| 5 | `publish` 결과 불명 — 발행됐을 수도, 안 됐을 수도 있음 | 곧장 재시도하지 말고 사용자에게 확인 |
+| 0 | Success (warnings allowed) | Next step |
+| 1 | Validation failed (`validation_failed`) | Fix and retry |
+| 2 | Usage error, missing file, or local JSON parse error | Fix the command |
+| 3 | Rate limited (`rate_limited`) | Wait the indicated time |
+| 4 | Network or server error (definitely not published) | Try again later |
+| 5 | `publish` outcome unknown (it may or may not have been published) | Do not retry right away; check with the user |
 
-1과 0은 HTTP 상태가 아니라 응답 본문의 `ok`로 갈립니다 — `validate`는 실패해도 200을 냅니다.
-`validate`·`publish`는 서버가 항상 `{ ok: boolean, ... }`을 낸다고 계약돼 있어서, 응답이
-JSON이 아니거나 `ok` 필드가 없으면(프록시 오류 페이지 등) 성공으로 잘못 읽지 않고 4로
-처리합니다. `guide --json`도 마찬가지로, 응답이 JSON이 아니면(서버가 `?format=json`을
-무시한 경우 등) 4로 처리합니다.
+Codes 0 and 1 are decided by the `ok` field in the response body, not the HTTP status (`validate` returns 200 even when it fails). `validate` and `publish` are contracted to always return `{ ok: boolean, ... }`, so a response that is not JSON or lacks `ok` (for example a proxy error page) is never read as success and becomes 4. `guide --json` likewise exits 4 when the response is not JSON.
 
-`validate`·`guide`는 30초 안에 응답이 없으면 4입니다(연결은 됐지만 느린 경우 포함).
-**`publish`만 다릅니다:** 타임아웃이 60초로 더 길고, "확실히 발행 안 됨"(4)과 "발행됐을
-수 있음"(5, 결과 불명)을 실제 저수준 오류로 가릅니다.
+`validate` and `guide` exit 4 when there is no response within 30 seconds (including a slow but connected server). **`publish` is different:** its timeout is 60 seconds, and it separates "definitely not published" (4) from "may have been published" (5) using the low-level error:
 
-| 상황 | 종료 코드 |
+| Situation | Exit code |
 |---|---|
-| DNS 실패, 접속 거부(`ECONNREFUSED`), TLS 인증서 오류(만료·자체 서명·발급자 확인 불가 등)·핸드셰이크 첫 바이트 오류(`ERR_SSL_WRONG_VERSION_NUMBER` 등)·금지 포트처럼 요청이 정말 나가지 못함 | 4 |
-| 60초 타임아웃(연결 이후 어느 시점이든) | 5 |
-| 연결은 됐는데 응답 중간에 끊김(`ECONNRESET` 등) | 5 |
-| `ok: true`인데 `slug`/`url`/`ownerUrl`이 없음 | 5 |
-| 서버가 JSON도, 계약된 모양도 아닌 응답을 주는데 상태가 2xx 또는 5xx | 5 |
-| 서버가 4xx로 JSON 오류를 계약대로 알림(코드와 무관, `validation_failed`/`rate_limited` 제외) — 요청을 거절했다는 뜻이라 저장까지 갔을 여지가 없음 | 4 |
-| 서버가 5xx로 아는 오류(`internal`·`unavailable`·`invalid_json`·`payload_too_large`·`unsupported_media_type`)를 계약대로 알림 | 4 |
-| 서버가 5xx로 "결과 불명"이라고 스스로 알림(`error.code: "publish_unknown"`)이거나 모르는 새 오류 코드 | 5(안전한 쪽으로) |
+| The request never left: DNS failure, connection refused (`ECONNREFUSED`), TLS certificate errors (expired, self-signed, unknown issuer, …), first-byte handshake errors (`ERR_SSL_WRONG_VERSION_NUMBER`, …), forbidden port | 4 |
+| 60-second timeout (at any point after connecting) | 5 |
+| Connected, then cut off mid-response (`ECONNRESET`, …) | 5 |
+| `ok: true` but `slug`/`url`/`ownerUrl` missing | 5 |
+| Response that is neither JSON nor the contracted shape, with a 2xx or 5xx status | 5 |
+| 4xx with a contracted JSON error (any code except `validation_failed`/`rate_limited`): the server refused the request, so nothing was saved | 4 |
+| 5xx with a known contracted error (`internal`, `unavailable`, `invalid_json`, `payload_too_large`, `unsupported_media_type`) | 4 |
+| 5xx where the server itself reports an unknown outcome (`error.code: "publish_unknown"`) or an unknown new error code | 5 (the safe side) |
 
-5를 받으면 같은 내용으로 곧장 다시 `publish`하지 말고, 사용자에게 확인을 구하세요.
-`--json`이면 `{"ok":false,"error":{"code":"publish_unknown","message":"..."}}`에
-서버 원문 응답이 있으면 `raw` 필드로 같이 실어서(사람용 출력은 `원본 응답:` 줄), 사람이
-그 안에서 직접 참여 링크를 찾아볼 수 있게 합니다. 이 원문은 CI 로그에 남을 수 있어서
-대시보드 링크의 토큰(`/owner/…` 경로와 `ownerUrl` 값)은 `[redacted]`로 가려서 출력합니다.
+On 5, do not immediately `publish` the same content again; ask the user first. With `--json` the output is `{"ok":false,"error":{"code":"publish_unknown","message":"..."}}`, plus a `raw` field with the server's original response when there is one (human output shows it on a `원본 응답:` line), so a person can look for the play link in it. Because this may end up in CI logs, the dashboard token (the `/owner/…` path and the `ownerUrl` value) is printed as `[redacted]`.
 
-## 대시보드 링크는 어디에 저장되나
+## Where dashboard links are stored
 
-`publish`가 성공하면 `~/.config/letsplayquiz/tests.jsonl`(`XDG_CONFIG_HOME`이 있으면 그
-아래)에 한 줄짜리 JSON(JSONL)으로 이어 붙입니다: `slug`, `title`, `kind`, `url`,
-`ownerUrl`, `api`, `publishedAt`. 이 파일과
-디렉터리는 각각 권한 `600`/`700`으로 만들어 같은 컴퓨터의 다른 사용자가 읽지 못하게
-합니다. 락 파일 없이 매번 파일 끝에 한 줄을 덧붙이기만 해서, 동시에 여러 번 발행해도
-기록이 서로 덮어써지지 않습니다(일반 파일에 대한 `O_APPEND` 원자성은 로컬
-파일시스템의 구현이 보장합니다 — Linux ext4의 inode 잠금, macOS APFS,
-Windows `FILE_APPEND_DATA` 등. NFS 같은 네트워크 파일시스템은 이 보장이 없지만
-이 CLI는 로컬 홈 디렉터리만 씁니다).
+On success, `publish` appends one JSON line (JSONL) to `~/.config/letsplayquiz/tests.jsonl` (under `XDG_CONFIG_HOME` if set) with `slug`, `title`, `kind`, `url`, `ownerUrl`, `api`, `publishedAt`. The file and directory are created with permissions `600`/`700` so other users on the same computer cannot read them. The CLI only appends one line per publish without a lock file, so concurrent publishes never overwrite each other (append atomicity on regular files is guaranteed by local filesystems such as Linux ext4, macOS APFS and Windows `FILE_APPEND_DATA`; network filesystems like NFS do not guarantee it, but the CLI only writes to the local home directory).
 
-`ownerUrl`(대시보드 링크)은 로그인 없는 LetsPlayQuiz에서 창작자임을 증명하는 **유일한 수단**이라
-다시 발급받을 수 없습니다. `publish`는 성공 시 이 링크를 화면에도 출력합니다 — 만든 사람과
-그 사람의 AI 에이전트가 바로 받아 써야 하기 때문입니다. **CI 로그나 공유 터미널 세션에
-찍히면 남에게 보일 수 있으니, CI에서 자동 발행할 때는 로그 노출에 주의하세요.**
+The `ownerUrl` (dashboard link) is **the only proof** that you created the quiz, because LetsPlayQuiz has no login, and it cannot be issued again. `publish` also prints it on screen, since the creator and their AI agent need it right away. **It can be seen by others if it lands in CI logs or a shared terminal session, so be careful when publishing automatically from CI.**
 
-## 예시
+## Example
 
 ```sh
 npx letsplayquiz guide --kind type --json > guide.json
-# ... AI가 guide.json을 읽고 test.json을 작성 ...
+# ... the AI reads guide.json and writes test.json ...
 npx letsplayquiz validate test.json
 npx letsplayquiz publish test.json
 npx letsplayquiz list
 ```
+
+## License
+
+MIT
