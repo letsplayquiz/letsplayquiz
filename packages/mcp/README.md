@@ -45,17 +45,19 @@ claude mcp add letsplayquiz -- npx -y letsplayquiz-mcp
 | `get_guide` `{kind?, lang?}` | Authoring guide as JSON. `kind` is `score`, `type`, `balance` or `worldcup`; `lang` is `ko`, `ja` or `en`. Read-only. |
 | `validate_quiz` `{quiz, lang?}` | Returns `ok`, `blockers` (must fix) and `warnings`. A failed validation is a normal result, not an error. Read-only. |
 | `publish_quiz` `{quiz, lang?, save?}` | Publishes a **public** quiz on letsplayquiz.net and returns `url` and `ownerUrl`. `save` (default `true`) records the result in the local history. The agent should confirm with you first. |
-| `list_my_quizzes` `{}` | Quizzes published from this computer, newest first. No server call. Includes each `ownerUrl`. |
+| `list_my_quizzes` `{includeOwnerUrls?}` | Quizzes published from this computer, newest first. No server call. Owner links are hidden unless `includeOwnerUrls` is `true` (set it only when you explicitly ask for your dashboard links). |
 
 `ownerUrl` is the only proof that you own a quiz and it cannot be reissued. Keep it private.
 
 `publish_quiz` follows the CLI's exit semantics: validation failures list the blockers, rate limiting reports the retry delay, and a definite failure says the quiz was **not published**. If the outcome is unknown (timeout, dropped connection, ambiguous response) the result is an error saying the quiz **may** have been published; the agent must not retry automatically and should ask you. Owner links in the raw response are redacted.
 
+**If the call fails with a timeout or transport error and no result, treat it as MAY have been published; do not retry; ask the user.** The server gives up after 45 seconds (below the 60 second default of most MCP clients) so you normally get the explicit result, and it sends progress notifications while publishing when the client supplies a progress token. Cancelling a publish is also treated as an unknown outcome.
+
 ## Configuration
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `LETSPLAYQUIZ_API` | `https://letsplayquiz.net` | Server base URL. Must be `https` (plain `http` only for `localhost`, `127.0.0.1`, `[::1]`). An invalid value makes the server exit at startup with a message on stderr. |
+| `LETSPLAYQUIZ_API` | `https://letsplayquiz.net` | Server base URL. Must be `https` (plain `http` only for `localhost`, `127.0.0.1`, `[::1]`). An invalid value (including whitespace only, or `user:pass@`) does not stop the server: `get_guide`, `validate_quiz` and `publish_quiz` return an error explaining the problem, while `list_my_quizzes` keeps working. |
 | `XDG_CONFIG_HOME` | `~/.config` | The history file is `$XDG_CONFIG_HOME/letsplayquiz/tests.jsonl`, shared with the CLI. |
 
 Example for a local development server (Claude Code):

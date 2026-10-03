@@ -13,15 +13,50 @@ import {
   formatIssues,
   saveRecord,
   loadRecords,
-  PUBLISH_TIMEOUT_MS,
   type StoreIo,
   type HttpFailure,
 } from 'letsplayquiz/lib'
 
 export interface ToolContext {
   api: string
+  /** LETSPLAYQUIZ_API가 잘못됐을 때의 안내. 있으면 네트워크 도구는 이 오류를 돌려준다. */
+  apiError?: string
   ua: string
   store: StoreIo
+}
+
+/** MCP 클라이언트의 기본 요청 타임아웃(60초)보다 확실히 짧아야, 클라이언트가 먼저
+ * 포기해 "결과 불명" 안내를 못 받는 일이 없다. */
+export const MCP_PUBLISH_TIMEOUT_MS = 45_000
+const PROGRESS_INTERVAL_MS = 10_000
+
+export interface CallOptions {
+  signal?: AbortSignal
+  /** 진행 알림을 보낼 수 있을 때(클라이언트가 progressToken을 줬을 때) 주기적으로 부른다. */
+  onProgress?: (tick: number) => void
+  publishTimeoutMs?: number
+  progressIntervalMs?: number
+}
+
+const OWNER_KEY_RE = /^owner/i
+
+/** 오류·원문 경로에 나가는 값에서 owner 토큰을 지운다: owner* 키는 버리고 문자열은 가린다. */
+export function sanitize(value: unknown): unknown {
+  if (typeof value === 'string') return redactOwnerSecrets(value)
+  if (Array.isArray(value)) return value.map(sanitize)
+  if (isRecord(value)) {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(value)) {
+      if (!OWNER_KEY_RE.test(k)) out[k] = sanitize(v)
+    }
+    return out
+  }
+  return value
+}
+
+function apiErrorResult(ctx: ToolContext): ToolResult | undefined {
+  if (!ctx.apiError) return undefined
+  return errorText(ctx.apiError, { ok: false, error: { code: 'invalid_api', message: ctx.apiError } })
 }
 
 export interface ToolResult {
@@ -52,11 +87,17 @@ function connectError(ctx: ToolContext, failure: HttpFailure): ToolResult {
 }
 
 function arrayOf(v: unknown): unknown[] {
-  return Array.isArray(v) ? v : []
+  return Array.isArray(v) ? (sanitize(v) as unknown[]) : []
 }
 
-export async function getGuide(ctx: ToolContext, args: { kind?: string; lang?: string }): Promise<ToolResult> {
-  const result = await fetchGuide(ctx.api, { kind: args.kind, lang: args.lang, asJson: true }, ctx.ua)
+export async function getGuide(
+  ctx: ToolContext,
+  args: { kind?: string; lang?: string },
+  opts: CallOptions = {},
+): Promise<ToolResult> {
+  const bad = apiErrorResult(ctx)
+  if (bad) return bad
+  const result = await fetchGuide(ctx.api, { kind: args.kind, lang: args.lang, asJson: true }, ctx.ua, undefined, opts.signal)
   if (!result.ok) return connectError(ctx, result.failure)
   const outcome = decideOutcome(result.response, 'guide')
   if (outcome.exitCode === 0) {
@@ -71,14 +112,14 @@ export async function getGuide(ctx: ToolContext, args: { kind?: string; lang?: s
 
 /** 가이드/검증의 비성공 결과를 공통으로 그린다(검증 실패 1은 호출 쪽에서 먼저 거른다). */
 function failureResult(outcome: ReturnType<typeof decideOutcome>, status: number): ToolResult {
-  const json = withRetryAfterField(outcome.json, outcome.retryAfterSeconds)
+  const json = sanitize(withRetryAfterField(outcome.json, outcome.retryAfterSeconds))
   const structured = isRecord(json) ? (json as Record<string, unknown>) : undefined
   if (outcome.exitCode === 3) {
     return errorText(`Rate limited. ${retryMessage(outcome.retryAfterSeconds)}`, structured)
   }
   const message =
     isRecord(outcome.json) && isRecord(outcome.json.error) && typeof outcome.json.error.message === 'string'
-      ? outcome.json.error.message
+      ? (sanitize(outcome.json.error.message) as string)
       : `The server returned an unexpected response (HTTP ${status}).`
   return errorText(message, structured)
 }
@@ -86,8 +127,11 @@ function failureResult(outcome: ReturnType<typeof decideOutcome>, status: number
 export async function validateQuiz(
   ctx: ToolContext,
   args: { quiz: Record<string, unknown>; lang?: string },
+  opts: CallOptions = {},
 ): Promise<ToolResult> {
-  const result = await postJson(ctx.api, '/api/v1/tests/validate', args.quiz, { lang: args.lang }, ctx.ua)
+  const bad = apiErrorResult(ctx)
+  if (bad) return bad
+  const result = await postJson(ctx.api, '/api/v1/tests/validate', args.quiz, { lang: args.lang }, ctx.ua, undefined, opts.signal)
   if (!result.ok) return connectError(ctx, result.failure)
   const outcome = decideOutcome(result.response, 'contract')
   const body = outcome.json
@@ -125,9 +169,29 @@ function publishUnknown(raw?: string): ToolResult {
 export async function publishQuiz(
   ctx: ToolContext,
   args: { quiz: Record<string, unknown>; lang?: string; save?: boolean },
+  opts: CallOptions = {},
 ): Promise<ToolResult> {
+  const bad = apiErrorResult(ctx)
+  if (bad) return bad
   const save = args.save ?? true
-  const result = await postJson(ctx.api, '/api/v1/tests', args.quiz, { lang: args.lang }, ctx.ua, PUBLISH_TIMEOUT_MS)
+  let tick = 0
+  const timer = opts.onProgress
+    ? setInterval(() => opts.onProgress?.(++tick), opts.progressIntervalMs ?? PROGRESS_INTERVAL_MS)
+    : undefined
+  let result
+  try {
+    result = await postJson(
+      ctx.api,
+      '/api/v1/tests',
+      args.quiz,
+      { lang: args.lang },
+      ctx.ua,
+      opts.publishTimeoutMs ?? MCP_PUBLISH_TIMEOUT_MS,
+      opts.signal,
+    )
+  } finally {
+    if (timer) clearInterval(timer)
+  }
   if (!result.ok) {
     if (classifyPublishNetworkFailure(result.failure) === 4) {
       const message = `Not published: could not connect to the server (${ctx.api}).`
@@ -192,13 +256,20 @@ export async function publishQuiz(
   return r
 }
 
-export async function listMyQuizzes(ctx: ToolContext): Promise<ToolResult> {
+export async function listMyQuizzes(ctx: ToolContext, args: { includeOwnerUrls?: boolean } = {}): Promise<ToolResult> {
+  const withOwner = args.includeOwnerUrls === true
   const { records, warning } = await loadRecords(ctx.store)
-  const sorted = [...records].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+  // 기본은 CLI `list`와 같은 필드만 — ownerUrl은 사용자가 명시적으로 원할 때만 낸다.
+  const sorted = [...records]
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+    .map(({ ownerUrl, ...rest }) => (withOwner ? { ...rest, ownerUrl } : rest))
   const lines =
     sorted.length === 0
       ? ['No quizzes published from this machine yet.']
-      : sorted.map((r) => `${r.publishedAt}  ${r.kind}  ${r.title}\n  url: ${r.url}\n  ownerUrl: ${r.ownerUrl}`)
+      : sorted.map((r) => {
+          const base = `${r.publishedAt}  ${r.kind}  ${r.title}\n  url: ${r.url}`
+          return 'ownerUrl' in r ? `${base}\n  ownerUrl: ${r.ownerUrl}` : base
+        })
   if (warning) lines.push(`Note: ${warning}`)
   return text(lines.join('\n'), { structuredContent: { records: sorted, ...(warning ? { warning } : {}) } })
 }

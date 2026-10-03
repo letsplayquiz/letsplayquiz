@@ -3,7 +3,7 @@
 import { createRequire } from 'node:module'
 import os from 'node:os'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { userAgent } from 'letsplayquiz/lib'
+import { userAgent, VERSION as CLI_VERSION } from 'letsplayquiz/lib'
 import { createServer } from './server.js'
 import { resolveApi } from './config.js'
 
@@ -12,18 +12,21 @@ const { version } = require('../package.json') as { version: string }
 
 async function main(): Promise<void> {
   const resolved = resolveApi(process.env)
-  if (!resolved.ok) {
-    process.stderr.write(`letsplayquiz-mcp: ${resolved.message}\n`)
-    process.exitCode = 2
-    return
+  // 잘못된 API 설정이어도 서버는 뜬다 — 네트워크 도구만 오류를 돌려주고, 로컬 기록
+  // 조회(list_my_quizzes)는 계속 쓸 수 있다(CLI `list`와 같다).
+  const ctx = {
+    api: resolved.ok ? resolved.api : '',
+    apiError: resolved.ok ? undefined : resolved.message,
+    ua: `${userAgent(CLI_VERSION)} letsplayquiz-mcp/${version}`,
+    store: { env: process.env, homedir: () => os.homedir() },
   }
-  const api = resolved.api
-  const server = createServer(
-    { api, ua: `${userAgent(version)} letsplayquiz-mcp/${version}`, store: { env: process.env, homedir: () => os.homedir() } },
-    version,
-  )
+  const server = createServer(ctx, version)
   await server.connect(new StdioServerTransport())
-  process.stderr.write(`letsplayquiz-mcp ${version} ready (api: ${api})\n`)
+  if (resolved.ok) {
+    process.stderr.write(`letsplayquiz-mcp ${version} ready (api: ${new URL(resolved.api).origin})\n`)
+  } else {
+    process.stderr.write(`letsplayquiz-mcp ${version} started, but ${resolved.message}\n`)
+  }
 }
 
 main().catch((e) => {

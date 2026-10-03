@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // 빌드된 dist/bin.js를 실제 stdio 프로세스로 띄워 SDK Client로 붙는다. 서버 쪽은
 // 로컬 http 스텁이라 네트워크가 필요 없다. 도구 4개와 어노테이션, get_guide와
-// validate_quiz 호출, 잘못된 LETSPLAYQUIZ_API로 즉시 종료하는 것을 확인한다.
+// validate_quiz 호출, 잘못된 LETSPLAYQUIZ_API에서도 서버가 뜨는 것을 확인한다.
 import http from 'node:http'
-import { spawnSync } from 'node:child_process'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -15,6 +16,9 @@ const distBin = path.join(here, '..', 'dist', 'bin.js')
 function assert(cond, message) {
   if (!cond) throw new Error(message)
 }
+
+// 실제 사용자 기록을 읽지 않도록 임시 설정 폴더를 쓴다.
+const tmpHome = mkdtempSync(path.join(tmpdir(), 'letsplayquiz-mcp-smoke-'))
 
 const stub = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x')
@@ -33,22 +37,33 @@ await new Promise((resolve) => stub.listen(0, '127.0.0.1', resolve))
 const api = `http://127.0.0.1:${stub.address().port}`
 
 try {
-  // 1) 잘못된 LETSPLAYQUIZ_API면 즉시 종료(exit 2)하고 stderr에 이유를 남긴다.
-  const bad = spawnSync(process.execPath, [distBin], {
-    env: { ...process.env, LETSPLAYQUIZ_API: 'http://example.com' },
-    encoding: 'utf8',
-    input: '',
-  })
-  assert(bad.status === 2, `잘못된 API인데 종료 코드가 2가 아니에요: ${bad.status}`)
-  assert(bad.stderr.includes('LETSPLAYQUIZ_API'), 'stderr에 LETSPLAYQUIZ_API 안내가 없어요')
-  assert(bad.stdout === '', 'stdout에 아무것도 쓰면 안 돼요')
-  console.log('OK  잘못된 LETSPLAYQUIZ_API → exit 2, stdout 비어 있음')
+  // 1) 잘못된 LETSPLAYQUIZ_API여도 서버는 뜬다: 네트워크 도구는 오류, list_my_quizzes는 동작.
+  {
+    const t = new StdioClientTransport({
+      command: process.execPath,
+      args: [distBin],
+      env: { ...process.env, LETSPLAYQUIZ_API: 'http://example.com', XDG_CONFIG_HOME: tmpHome },
+      stderr: 'pipe',
+    })
+    const c = new Client({ name: 'smoke', version: '0.0.0' })
+    await c.connect(t)
+    try {
+      const v = await c.callTool({ name: 'validate_quiz', arguments: { quiz: { kind: 'balance' } } })
+      assert(v.isError === true, '잘못된 API인데 validate_quiz가 오류가 아니에요')
+      assert(v.content[0].text.includes('LETSPLAYQUIZ_API'), '오류 메시지에 LETSPLAYQUIZ_API 안내가 없어요')
+      const l = await c.callTool({ name: 'list_my_quizzes', arguments: {} })
+      assert(!l.isError, '잘못된 API여도 list_my_quizzes는 동작해야 해요')
+    } finally {
+      await c.close()
+    }
+    console.log('OK  잘못된 LETSPLAYQUIZ_API → 서버는 뜨고 네트워크 도구만 오류, list는 동작')
+  }
 
   // 2) 정상 서버에 붙어 도구를 확인한다.
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [distBin],
-    env: { ...process.env, LETSPLAYQUIZ_API: api },
+    env: { ...process.env, LETSPLAYQUIZ_API: api, XDG_CONFIG_HOME: tmpHome },
     stderr: 'pipe',
   })
   const client = new Client({ name: 'smoke', version: '0.0.0' })
@@ -90,5 +105,6 @@ try {
   }
 } finally {
   await new Promise((resolve) => stub.close(resolve))
+  rmSync(tmpHome, { recursive: true, force: true })
 }
 console.log('MCP 스모크 테스트 통과')

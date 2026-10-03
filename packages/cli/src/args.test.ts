@@ -115,6 +115,12 @@ describe('parseArgs', () => {
     expect(parseArgs(['guide', '--api', 'http://[::1]:3000'], env()).kind).toBe('run')
   })
 
+  it('--api에 user:pass@가 있으면 오류(2)를 낸다(로컬 http도 마찬가지)', () => {
+    expect(parseArgs(['guide', '--api', 'https://user:pass@host.example'], env())).toMatchObject({ kind: 'error', exitCode: 2 })
+    expect(parseArgs(['guide', '--api', 'https://user@host.example'], env())).toMatchObject({ kind: 'error', exitCode: 2 })
+    expect(parseArgs(['guide', '--api', 'http://u:p@localhost:3000'], env())).toMatchObject({ kind: 'error', exitCode: 2 })
+  })
+
   it('경로가 있는 --api도 https면 허용한다', () => {
     const outcome = parseArgs(['guide', '--api', 'https://host.example/sub/'], env())
     expect(outcome).toMatchObject({ kind: 'run', args: { api: 'https://host.example/sub/' } })

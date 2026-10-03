@@ -66,6 +66,10 @@ export function validateApi(raw: string): { ok: true } | { ok: false; message: s
   } catch {
     return { ok: false, message: `--api 값이 올바른 URL이 아니에요: ${raw}` }
   }
+  // user:pass@host는 자격 증명이 로그·URL에 새기 쉬워 막는다.
+  if (url.username !== '' || url.password !== '') {
+    return { ok: false, message: '--api에는 사용자 이름·비밀번호(user:pass@)를 넣을 수 없어요' }
+  }
   if (url.protocol === 'https:') return { ok: true }
   if (url.protocol === 'http:' && LOCAL_HOSTNAMES.has(url.hostname)) return { ok: true }
   return {

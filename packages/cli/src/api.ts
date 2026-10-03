@@ -66,8 +66,15 @@ export async function httpFetch(
   url: string,
   init: RequestInit,
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  externalSignal?: AbortSignal,
 ): Promise<HttpResult> {
   const controller = new AbortController()
+  // 호출자가 취소하면(예: MCP 클라이언트의 취소) 타임아웃과 똑같이 다룬다 — 요청이
+  // 이미 서버에 닿았을 수 있어 publish는 "결과 불명"으로 분류된다.
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort()
+    else externalSignal.addEventListener('abort', () => controller.abort(), { once: true })
+  }
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   let res: Response
   try {
@@ -160,13 +167,14 @@ export async function fetchGuide(
   opts: { kind?: string; lang?: string; asJson: boolean },
   ua: string,
   timeoutMs?: number,
+  signal?: AbortSignal,
 ): Promise<HttpResult> {
   const url = buildUrl(api, '/api/v1/guide', {
     kind: opts.kind,
     lang: opts.lang,
     format: opts.asJson ? 'json' : undefined,
   })
-  return httpFetch(url, { headers: { 'User-Agent': ua } }, timeoutMs)
+  return httpFetch(url, { headers: { 'User-Agent': ua } }, timeoutMs, signal)
 }
 
 export async function postJson(
@@ -176,6 +184,7 @@ export async function postJson(
   opts: { lang?: string },
   ua: string,
   timeoutMs?: number,
+  signal?: AbortSignal,
 ): Promise<HttpResult> {
   const url = buildUrl(api, path, { lang: opts.lang })
   return httpFetch(
@@ -186,6 +195,7 @@ export async function postJson(
       body: JSON.stringify(body),
     },
     timeoutMs,
+    signal,
   )
 }
 

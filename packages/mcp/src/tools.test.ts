@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { resolveStoreFile } from 'letsplayquiz/lib'
-import { getGuide, validateQuiz, publishQuiz, listMyQuizzes, type ToolContext } from './tools.js'
+import { getGuide, validateQuiz, publishQuiz, listMyQuizzes, MCP_PUBLISH_TIMEOUT_MS, type ToolContext } from './tools.js'
 
 let home: string
 let ctx: ToolContext
@@ -180,6 +180,98 @@ describe('list_my_quizzes', () => {
     const r = await listMyQuizzes(ctx)
     const records = (r.structuredContent as { records: { slug: string }[] }).records
     expect(records.map((x) => x.slug)).toEqual(['s2', 's1'])
-    expect(r.content[0].text).toContain(published.ownerUrl)
+    // 기본값은 ownerUrl을 숨긴다(CLI list와 같다).
+    expect(JSON.stringify(r)).not.toContain('SECRETTOKEN')
+    expect(records[0]).not.toHaveProperty('ownerUrl')
+
+    const withOwner = await listMyQuizzes(ctx, { includeOwnerUrls: true })
+    expect(withOwner.content[0].text).toContain(published.ownerUrl)
+    expect((withOwner.structuredContent as { records: { ownerUrl: string }[] }).records[0].ownerUrl).toBe(published.ownerUrl)
+  })
+})
+
+describe('오류 경로의 owner 토큰 가리기', () => {
+  const leaky = {
+    ok: false,
+    error: { code: 'invalid_json', message: 'see https://example.test/owner/LEAKTOKEN now' },
+    ownerUrl: 'https://example.test/owner/LEAKTOKEN',
+    extra: { note: 'x /owner/LEAKTOKEN' },
+  }
+  it('publish/validate/guide의 4xx 본문에서 토큰을 지운다', async () => {
+    stubFetch(() => json(400, leaky))
+    for (const r of [
+      await publishQuiz(ctx, { quiz }),
+      await validateQuiz(ctx, { quiz }),
+      await getGuide(ctx, {}),
+    ]) {
+      expect(r.isError).toBe(true)
+      expect(JSON.stringify(r)).not.toContain('LEAKTOKEN')
+    }
+  })
+  it('blockers 안의 토큰도 지운다', async () => {
+    stubFetch(() =>
+      json(200, { ok: false, error: { code: 'validation_failed' }, blockers: [{ code: 'x', message: '/owner/LEAKTOKEN', path: ['a'] }] }),
+    )
+    const r = await validateQuiz(ctx, { quiz })
+    expect(JSON.stringify(r)).not.toContain('LEAKTOKEN')
+  })
+})
+
+describe('잘못된 API 설정', () => {
+  it('네트워크 도구는 오류를 돌려주고 fetch를 부르지 않으며 list는 동작한다', async () => {
+    const f = stubFetch(() => json(200, {}))
+    const bad: ToolContext = { ...ctx, api: '', apiError: 'invalid LETSPLAYQUIZ_API: nope' }
+    for (const r of [await getGuide(bad, {}), await validateQuiz(bad, { quiz }), await publishQuiz(bad, { quiz })]) {
+      expect(r.isError).toBe(true)
+      expect(r.content[0].text).toContain('invalid LETSPLAYQUIZ_API')
+    }
+    expect(f).not.toHaveBeenCalled()
+    expect((await listMyQuizzes(bad)).isError).toBeUndefined()
+  })
+})
+
+describe('publish 타임아웃·취소·진행 알림', () => {
+  /** signal을 지키는 fetch: abort되면 거부하고, 아니면 delay 뒤에 응답한다. */
+  function slowFetch(delayMs: number, res: () => Response) {
+    return stubFetch(
+      (_url, init) =>
+        new Promise<Response>((resolve, reject) => {
+          const t = setTimeout(() => resolve(res()), delayMs)
+          init?.signal?.addEventListener('abort', () => {
+            clearTimeout(t)
+            reject(new DOMException('aborted', 'AbortError'))
+          })
+        }),
+    )
+  }
+
+  it('MCP 발행 타임아웃은 클라이언트 기본 60초보다 확실히 짧다', () => {
+    expect(MCP_PUBLISH_TIMEOUT_MS).toBeLessThanOrEqual(50_000)
+  })
+  it('타임아웃은 결과 불명으로 알린다', async () => {
+    slowFetch(5_000, () => json(201, published))
+    const r = await publishQuiz(ctx, { quiz }, { publishTimeoutMs: 20 })
+    expect(r.isError).toBe(true)
+    expect(r.content[0].text).toContain('MAY have been published')
+  })
+  it('취소(signal)는 결과 불명으로 알린다', async () => {
+    slowFetch(5_000, () => json(201, published))
+    const ac = new AbortController()
+    const p = publishQuiz(ctx, { quiz }, { signal: ac.signal })
+    setTimeout(() => ac.abort(), 10)
+    const r = await p
+    expect(r.isError).toBe(true)
+    expect(r.content[0].text).toContain('MAY have been published')
+    await expect(fs.access(resolveStoreFile(ctx.store))).rejects.toThrow()
+  })
+  it('onProgress가 있으면 대기 중 주기적으로 부르고 끝나면 멈춘다', async () => {
+    slowFetch(80, () => json(201, published))
+    const ticks: number[] = []
+    const r = await publishQuiz(ctx, { quiz, save: false }, { onProgress: (n) => ticks.push(n), progressIntervalMs: 10 })
+    expect(r.isError).toBeUndefined()
+    expect(ticks.length).toBeGreaterThanOrEqual(2)
+    const after = ticks.length
+    await new Promise((res) => setTimeout(res, 40))
+    expect(ticks.length).toBe(after)
   })
 })
