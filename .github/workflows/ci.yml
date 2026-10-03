@@ -13,12 +13,17 @@ jobs:
         node: [20, 22]
     steps:
       - uses: actions/checkout@v4
+      # pnpm 11 itself needs Node >= 22.13, so install and build on Node 22.
+      # The CLI supports Node >= 20; tests and the smoke run use the matrix version.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - uses: pnpm/action-setup@v4
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm test
-      - run: pnpm build
-      - run: pnpm smoke
+      - run: node --version
+      - run: node node_modules/vitest/vitest.mjs run
+      - run: node packages/cli/scripts/smoke.mjs
