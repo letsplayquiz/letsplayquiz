@@ -1,7 +1,7 @@
 {
   "name": "letsplayquiz",
   "version": "0.1.0",
-  "description": "CLI for AI agents to create, validate and publish LetsPlayQuiz quizzes (score, type, balance, worldcup)",
+  "description": "CLI for AI agents to create, validate and publish LetsPlayQuiz quizzes (score, type, balance, worldcup, level)",
   "keywords": [
     "quiz",
     "personality-test",

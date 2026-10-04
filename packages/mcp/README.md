@@ -42,7 +42,7 @@ claude mcp add letsplayquiz -- npx -y letsplayquiz-mcp
 
 | Tool | What it does |
 | --- | --- |
-| `get_guide` `{kind?, lang?}` | Authoring guide as JSON. `kind` is `score`, `type`, `balance` or `worldcup`; `lang` is `ko`, `ja` or `en`. Read-only. |
+| `get_guide` `{kind?, lang?}` | Authoring guide as JSON. `kind` is `score`, `type`, `balance`, `worldcup` or `level`; `lang` is `ko`, `ja` or `en`. Read-only. |
 | `validate_quiz` `{quiz, lang?}` | Returns `ok`, `blockers` (must fix) and `warnings`. A failed validation is a normal result, not an error. Read-only. |
 | `publish_quiz` `{quiz, lang?, save?}` | Publishes a **public** quiz on letsplayquiz.net and returns `url` and `ownerUrl`. `save` (default `true`) records the result in the local history. The agent should confirm with you first. |
 | `list_my_quizzes` `{includeOwnerUrls?}` | Quizzes published from this computer, newest first. No server call. Owner links are hidden unless `includeOwnerUrls` is `true` (set it only when you explicitly ask for your dashboard links). |

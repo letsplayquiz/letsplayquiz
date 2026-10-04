@@ -24,7 +24,7 @@ Read-only; no body.
 
 | Query | Values | Default |
 |---|---|---|
-| `kind` | `score`, `type`, `balance`, `worldcup` | all kinds |
+| `kind` | `score`, `type`, `balance`, `worldcup`, `level` | all kinds |
 | `format` | `markdown`, `json` | `markdown` |
 | `lang` | `ko`, `ja`, `en` | `ko` |
 
@@ -79,18 +79,18 @@ Runs the same checks, then publishes. Success is `201`:
 
 ## Quiz body
 
-All three quiz-taking kinds share the same top-level shape. Strings are trimmed before the length checks.
+All the quiz-taking kinds share the same top-level shape. Strings are trimmed before the length checks.
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `kind` | `"score" \| "type" \| "balance" \| "worldcup"` | yes | |
+| `kind` | `"score" \| "type" \| "balance" \| "worldcup" \| "level"` | yes | |
 | `title` | string | yes | 1 to 60 characters |
 | `description` | string | no | up to 200 characters; empty counts as absent |
 | `locale` | `"ko" \| "ja" \| "en"` | no | language players see; default `ko` |
 | `theme` | `"classic" \| "mono" \| "candy" \| "ocean" \| "lemon" \| "mint" \| "grape"` | no | default `classic` |
 | `requestListing` | boolean | no | default `false`; ask to be considered for the home listing. Avoid for quizzes with private content such as friends' names |
 | `questions` | array | yes | up to 20 entries; must be `[]` for `worldcup` |
-| `resultTypes` | array | yes | see per-kind rules; up to 12 entries (`worldcup`: exactly 8 or 16) |
+| `resultTypes` | array | yes | see per-kind rules; up to 16 entries (`worldcup`: exactly 8 or 16) |
 | `tieRule` | `"order" \| "custom"` | yes | how ties between result types are resolved (see below) |
 | `tieResults` | array | yes | up to 66 entries; must be `[]` for `worldcup` |
 
@@ -111,6 +111,8 @@ All three quiz-taking kinds share the same top-level shape. Strings are trimmed 
 | `title` | string | up to 40 characters, non-empty |
 | `description` | string | up to 300 characters (must be present; non-empty for `type`) |
 | `emoji` | string | optional, up to 8 characters |
+| `minScore` | integer | `level` only (required there): 0 to 2000, the lowest total that reaches this level |
+| `goodMatch`, `badMatch` | string | `type` only, optional: the `key` of another (or the same) result type. Omit the field for "none"; an empty string is rejected |
 
 `tieResults[]` (only with `tieRule: "custom"` on `type` quizzes):
 
@@ -125,7 +127,8 @@ All three quiz-taking kinds share the same top-level shape. Strings are trimmed 
 | Kind | Choices per question | `weights` | `resultTypes` |
 |---|---|---|---|
 | `score` | exactly 4 | exactly one choice has `{"correct": 1}`; the others `{}` | not used (`[]`) |
-| `type` | 2 to 6 | each choice gives points to at least one declared result type key | 2 to 12 |
+| `type` | 2 to 6 | each choice gives points to at least one declared result type key | 2 to 16 |
+| `level` | 2 to 6 | exactly `{"points": n}` with n an integer 0 to 100 (0 is valid) | 2 to 16 levels, each with `minScore` |
 | `balance` | exactly 2 | not used (`{}`) | not used (`[]`) |
 | `worldcup` | no questions | not used | exactly 8 or 16 candidates; `title`s must be unique (compared after trimming and NFC normalization, case-sensitive) |
 
@@ -133,7 +136,22 @@ Notes:
 
 - For `type`, every result type must be reachable (as the winner, or as part of a tie) by some combination of answers; otherwise validation reports `unreachable_type`. If the quiz is too large to check exhaustively, a `reachability_unknown` warning is returned instead.
 - `tieRule: "order"` resolves ties by the order of `resultTypes`. With `"custom"`, every reachable tie between result types must be covered by a `tieResults` entry whose `typeKeys` is exactly that set; otherwise validation reports `tie_unresolved`. Use `"order"` unless you want custom tie results.
+- For `level`, the level is the last one whose `minScore` is at most the player's total points. The first `minScore` must be 0 and they must strictly increase. `tieRule` must be `"order"` and `tieResults` `[]` (`level_has_ties`). A `minScore` above the highest possible total is `level_unreachable`; a level no possible total falls into is a `level_empty` warning.
+- Matching (`type` only): `goodMatch` and `badMatch` name a result type of the same quiz (`match_unknown_type` if it is not one). On one type they must differ from each other (`match_same`). On other kinds they are rejected (`match_not_supported`), and `minScore` outside `level` is `min_score_not_allowed`.
 - Run `GET /api/v1/guide?format=json&lang=en` for complete, always-current examples; they are what the server itself accepts.
+
+### Axis form for `type`
+
+When a personality result is a combination of traits, send `kind: "type"` with `axes` instead of `resultTypes`, `tieRule`, `tieResults` and `weights`; the server expands it into an ordinary `type` quiz. `GET /api/v1/guide?kind=type` has the full rules and an example.
+
+| Field | Notes |
+|---|---|
+| `axes` | 2 to 4 axes, each `{ "poles": [{ "key", "label" }, { "key", "label" }] }`; pole `key` matches `^[a-z0-9]{1,4}$`, `label` up to 12 characters |
+| `results` | exactly one per combination of poles (2 axes: 4, 3 axes: 8, 4 axes: 16): `{ "poles": [one pole key per axis, in axis order], "title", "description", "emoji"?, "goodMatch"?, "badMatch"? }` |
+| `questions[].axis` | index of the axis the question measures (0-based) |
+| `questions[].choices[].pole` | the pole key (of that axis) the choice leans to |
+
+`goodMatch` and `badMatch` here are arrays of pole keys in the same shape as `poles`. Sending `resultTypes`, `tieResults`, `tieRule` or `weights` with `axes` is rejected (`axes_mixed`), and `axes` on a kind other than `type` is `axes_kind`. Issue `path`s refer to the body you sent, not the expanded quiz.
 
 ## Issues (validation results)
 
@@ -155,6 +173,7 @@ Issue codes:
 - Generic field checks: `required`, `invalid_type`, `too_short`, `too_long`, `invalid_value`, `unrecognized_keys`, `invalid_input`, `out_of_range`.
 - Kind and structure rules: `reserved_type_key`, `bracket_has_questions`, `bracket_has_ties`, `candidate_count`, `no_questions`, `too_many_types`, `too_few_types`, `type_description_empty`, `choice_count`, `duplicate_type_key`.
 - Content rules: `title_empty`, `candidate_title_empty`, `candidate_title_too_long`, `candidate_title_duplicate`, `type_title_empty`, `type_title_too_long`, `tie_unknown_type`, `question_body_empty`, `choice_label_empty`, `unknown_weight_key`, `choice_no_weight`, `no_correct_answer`, `multiple_correct_answers`, `unreachable_type`, `reachability_unknown`, `tie_unresolved`.
+- Axis form, level and matching: `axes_mixed`, `axes_kind`, `level_has_ties`, `min_score_not_allowed`, `level_first_not_zero`, `level_not_increasing`, `level_unreachable`, `level_empty` (warning), `match_unknown_type`, `match_same`, `match_not_supported`, and `axis_*` codes for axis-form mistakes.
 
 `GET /api/v1/guide?format=json` lists each blocker code with a hint on how to fix it.
 

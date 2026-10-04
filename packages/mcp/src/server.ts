@@ -20,7 +20,7 @@ export function createServer(
     {
       title: 'Get quiz authoring guide',
       description:
-        'Fetch the LetsPlayQuiz authoring guide as JSON: the quiz schema and rules for each kind (score, type, balance, worldcup). Call this before writing a quiz.',
+        'Fetch the LetsPlayQuiz authoring guide as JSON: the quiz schema and rules for each kind (score, type, balance, worldcup, level). Call this before writing a quiz.',
       inputSchema: {
         kind: z.enum(KINDS).optional().describe('Quiz kind to get the guide for; omit for the overview'),
         lang,

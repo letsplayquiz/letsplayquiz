@@ -4,7 +4,7 @@
 // 2를 낸다.
 import { parseArgs as nodeParseArgs } from 'node:util'
 
-export const KINDS = ['score', 'type', 'balance', 'worldcup'] as const
+export const KINDS = ['score', 'type', 'balance', 'worldcup', 'level'] as const
 export type Kind = (typeof KINDS)[number]
 
 export const LANGS = ['ko', 'ja', 'en'] as const
@@ -35,7 +35,7 @@ export type ParseOutcome =
 export const HELP_TEXT = `letsplayquiz — AI 에이전트로 LetsPlayQuiz 테스트를 만들고 발행하는 CLI
 
 사용법:
-  letsplayquiz guide [--kind score|type|balance|worldcup]
+  letsplayquiz guide [--kind score|type|balance|worldcup|level]
   letsplayquiz validate <file | ->
   letsplayquiz publish  <file | ->
   letsplayquiz list
