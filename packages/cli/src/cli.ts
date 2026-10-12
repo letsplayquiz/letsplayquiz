@@ -308,7 +308,7 @@ async function runList(args: ParsedArgs, io: Io): Promise<number> {
     return 0
   }
   if (sorted.length === 0) {
-    io.stdout('아직 발행한 테스트가 없어요. `letsplayquiz publish`로 만들어 보세요\n')
+    io.stdout('아직 발행한 퀴즈가 없어요. `letsplayquiz publish`로 만들어 보세요\n')
     return 0
   }
   for (const record of sorted) {

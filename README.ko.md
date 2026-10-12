@@ -31,9 +31,9 @@ Node.js 20 이상이 필요합니다. 설치 없이 바로 씁니다.
 
 ```sh
 npx letsplayquiz guide --kind balance   # 종류별 규칙과 완성 예시
-npx letsplayquiz validate test.json     # 저장하지 않고 검사
-npx letsplayquiz publish test.json      # 검사 후 발행
-npx letsplayquiz list                   # 이 컴퓨터에서 발행한 테스트
+npx letsplayquiz validate quiz.json     # 저장하지 않고 검사
+npx letsplayquiz publish quiz.json      # 검사 후 발행
+npx letsplayquiz list                   # 이 컴퓨터에서 발행한 퀴즈
 ```
 
 짧게는 별칭 `npx lpqz guide`로 씁니다. 파일 이름 자리에 `-`를 주면 표준 입력에서 JSON을 읽습니다.
@@ -43,7 +43,7 @@ npx letsplayquiz list                   # 이 컴퓨터에서 발행한 테스�
 | `guide [--kind score\|type\|balance\|worldcup\|level]` | 설명서 출력 (`--kind` 생략 시 전부) |
 | `validate <file \| ->` | 저장하지 않고 검사만 |
 | `publish <file \| ->` | 검사를 통과하면 발행 |
-| `list` | 이 컴퓨터에서 발행한 테스트를 최근 순으로 표시 (서버를 부르지 않음) |
+| `list` | 이 컴퓨터에서 발행한 퀴즈를 최근 순으로 표시 (서버를 부르지 않음) |
 
 | 옵션 | 설명 |
 |---|---|

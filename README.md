@@ -31,9 +31,9 @@ Requires Node.js 20 or newer. Nothing to install:
 
 ```sh
 npx letsplayquiz guide --kind balance   # rules + a complete example for one kind
-npx letsplayquiz validate test.json     # check without saving
-npx letsplayquiz publish test.json      # validate, then publish
-npx letsplayquiz list                   # tests published from this computer
+npx letsplayquiz validate quiz.json     # check without saving
+npx letsplayquiz publish quiz.json      # validate, then publish
+npx letsplayquiz list                   # quizzes published from this computer
 ```
 
 `lpqz` is a shorter alias: `npx lpqz guide`. Use `-` instead of a file name to read JSON from standard input.
@@ -43,7 +43,7 @@ npx letsplayquiz list                   # tests published from this computer
 | `guide [--kind score\|type\|balance\|worldcup\|level]` | Print the guide (all kinds if `--kind` is omitted) |
 | `validate <file \| ->` | Check a quiz JSON without saving it |
 | `publish <file \| ->` | Validate, then publish |
-| `list` | Show tests published from this computer, newest first (no network call) |
+| `list` | Show quizzes published from this computer, newest first (no network call) |
 
 | Option | Description |
 |---|---|

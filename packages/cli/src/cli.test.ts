@@ -89,7 +89,7 @@ describe('validate 명령', () => {
   })
 
   it('사람용 출력은 blocker 한 줄에 하나, 경로  코드  메시지 형식이다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     const body = {
       ok: false,
@@ -105,7 +105,7 @@ describe('validate 명령', () => {
   })
 
   it('--json이면 서버 본문을 그대로 출력한다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     const body = { ok: true, blockers: [], warnings: [] }
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(200, body)))
@@ -116,7 +116,7 @@ describe('validate 명령', () => {
   })
 
   it('429이면 Retry-After 값을 사람용 출력에 적는다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     const body = { ok: false, error: { code: 'rate_limited', message: '너무 많아요' } }
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(429, body, { 'retry-after': '120' })))
@@ -129,7 +129,7 @@ describe('validate 명령', () => {
 
 describe('publish 명령', () => {
   it('성공하면 url과 ownerUrl을 출력하고 경고를 낸다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance', title: '짜장 vs 짬뽕' }))
     const body = {
       ok: true,
@@ -148,7 +148,7 @@ describe('publish 명령', () => {
   })
 
   it('성공하면 기록 파일에 저장된다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance', title: '짜장 vs 짬뽕' }))
     const body = {
       ok: true,
@@ -166,7 +166,7 @@ describe('publish 명령', () => {
   })
 
   it('--no-save면 기록 파일을 만들지 않는다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance', title: '짜장 vs 짬뽕' }))
     const body = {
       ok: true,
@@ -182,7 +182,7 @@ describe('publish 명령', () => {
   })
 
   it('검사 실패(400 validation_failed) → 1, blocker를 출력한다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     const body = {
       ok: false,
@@ -198,7 +198,7 @@ describe('publish 명령', () => {
   })
 
   it('서버가 500을 주면 4', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     const body = { ok: false, error: { code: 'internal', message: '문제가 생겼어요' } }
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(500, body)))
@@ -208,7 +208,7 @@ describe('publish 명령', () => {
   })
 
   it('연결 자체가 안 되면(ECONNREFUSED류) 4', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     vi.stubGlobal(
       'fetch',
@@ -224,7 +224,7 @@ describe('publish 명령', () => {
   })
 
   it('원인 코드를 알 수 없는 fetch 실패는 5(확실하지 않음)다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     vi.stubGlobal(
       'fetch',
@@ -267,7 +267,7 @@ describe('list 명령', () => {
   })
 
   it('발행 기록이 있으면 보여 준다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance', title: '짜장 vs 짬뽕' }))
     const body = {
       ok: true,
@@ -415,7 +415,7 @@ describe('타임아웃', () => {
 
 describe('계약과 다른 응답(비정상 2xx)', () => {
   it('validate가 200인데 JSON이 아니면 4', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     vi.stubGlobal('fetch', vi.fn(async () => new Response('<html>ok?</html>', { status: 200 })))
     const io = makeIo()
@@ -424,7 +424,7 @@ describe('계약과 다른 응답(비정상 2xx)', () => {
   })
 
   it('validate가 200인데 ok 필드가 없으면 4', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(200, { hello: 'world' })))
     const io = makeIo()
@@ -433,7 +433,7 @@ describe('계약과 다른 응답(비정상 2xx)', () => {
   })
 
   it('--json이면 bad_response 코드를 담은 합성 JSON을 낸다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 200 })))
     const io = makeIo()
@@ -444,7 +444,7 @@ describe('계약과 다른 응답(비정상 2xx)', () => {
   })
 
   it('publish가 ok:true인데 url/ownerUrl/slug가 없으면 5(결과 불명), 원문을 함께 낸다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(201, { ok: true })))
     const io = makeIo()
@@ -455,7 +455,7 @@ describe('계약과 다른 응답(비정상 2xx)', () => {
   })
 
   it('validate가 ok:true인데 필드가 없어도(계약이 요구하지 않으므로) 정상 0이다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(200, { ok: true })))
     const io = makeIo()
@@ -525,7 +525,7 @@ describe('publish 결과 불명(exit 5)', () => {
   })
 
   it('연결 자체가 안 되면(cause.code가 ECONNREFUSED류) 4 그대로다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     vi.stubGlobal(
       'fetch',
@@ -541,7 +541,7 @@ describe('publish 결과 불명(exit 5)', () => {
   })
 
   it('연결은 됐지만 본문이 끊기면 5다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     vi.stubGlobal(
       'fetch',
@@ -557,7 +557,7 @@ describe('publish 결과 불명(exit 5)', () => {
   })
 
   it('--json이면 publish_unknown 코드를 담은 합성 JSON을 낸다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(201, { ok: true })))
     const io = makeIo()
@@ -569,7 +569,7 @@ describe('publish 결과 불명(exit 5)', () => {
   })
 
   it('ok:true인데 ownerUrl이 없으면(계약 위반) 5, 기록은 남기지 않는다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance', title: '짜장 vs 짬뽕' }))
     // ok: true인데 ownerUrl이 없다 — hasRequiredFields가 실패해 5(결과 불명)로
     // 끝난다. "확인 필요" 자동 기록 기능은 걷어냈으므로(2026-09-26 다섯 번째
@@ -585,7 +585,7 @@ describe('publish 결과 불명(exit 5)', () => {
   })
 
   it('ok 필드가 없는(계약 위반) 502류 응답은 링크가 본문에 있어도 기록을 남기지 않는다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance', title: '짜장 vs 짬뽕' }))
     const raw = JSON.stringify({
       slug: 'ab12cd34',
@@ -600,7 +600,7 @@ describe('publish 결과 불명(exit 5)', () => {
   })
 
   it('--no-save면 뽑은 링크가 있어도 저장하지 않는다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(201, { ok: true })))
     const io = makeIo()
@@ -628,7 +628,7 @@ describe('결과 불명 원문에서 owner 토큰을 가린다', () => {
   for (const [name, respond] of cases) {
     for (const asJson of [false, true]) {
       it(`${name}${asJson ? ' (--json)' : ''} → 5, 출력에 토큰이 없다`, async () => {
-        const file = path.join(tmpDir, 'test.json')
+        const file = path.join(tmpDir, 'quiz.json')
         await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
         vi.stubGlobal('fetch', vi.fn(async () => respond()))
         const io = makeIo()
@@ -644,7 +644,7 @@ describe('결과 불명 원문에서 owner 토큰을 가린다', () => {
 
 describe('서버가 결과 불명을 스스로 알림(publish_unknown) / 알려진 4 코드', () => {
   it('JSON 502 publish_unknown → 5', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     const body = { ok: false, error: { code: 'publish_unknown', message: '서버도 결과를 몰라요' } }
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(502, body)))
@@ -654,7 +654,7 @@ describe('서버가 결과 불명을 스스로 알림(publish_unknown) / 알려�
   })
 
   it('JSON 500 internal → 4(알려진 코드는 그대로)', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     const body = { ok: false, error: { code: 'internal', message: '문제가 생겼어요' } }
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(500, body)))
@@ -664,7 +664,7 @@ describe('서버가 결과 불명을 스스로 알림(publish_unknown) / 알려�
   })
 
   it('JSON 5xx의 모르는 코드는 5(안전한 쪽)', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     const body = { ok: false, error: { code: 'brand_new_server_code', message: 'm' } }
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(500, body)))
@@ -676,7 +676,7 @@ describe('서버가 결과 불명을 스스로 알림(publish_unknown) / 알려�
 
 describe('429/503과 --json', () => {
   it('429 --json 출력에 retryAfterSeconds를 덧붙인다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     const body = { ok: false, error: { code: 'rate_limited', message: 'm' } }
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(429, body, { 'retry-after': '77' })))
@@ -687,7 +687,7 @@ describe('429/503과 --json', () => {
   })
 
   it('Retry-After가 없으면 잠시 후 문구로 대체한다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     const body = { ok: false, error: { code: 'rate_limited', message: 'm' } }
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(429, body)))
@@ -700,7 +700,7 @@ describe('429/503과 --json', () => {
 
 describe('validate 성공 + warnings', () => {
   it('blocker가 없어도 warnings를 사람용 출력에 보여 준다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
     const body = {
       ok: true,
@@ -739,7 +739,7 @@ describe('list의 손상된 기록 파일', () => {
 
 describe('저장 실패는 발행을 실패시키지 않는다', () => {
   it('쓸 수 없는 XDG_CONFIG_HOME이어도 publish는 exit 0이다', async () => {
-    const file = path.join(tmpDir, 'test.json')
+    const file = path.join(tmpDir, 'quiz.json')
     await fs.writeFile(file, JSON.stringify({ kind: 'balance', title: '짜장 vs 짬뽕' }))
     const body = {
       ok: true,

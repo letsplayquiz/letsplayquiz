@@ -14,7 +14,7 @@ npx letsplayquiz guide --kind balance
 This prints the rules for that quiz kind plus a complete example JSON that passes validation. Then ask your AI agent something like:
 
 > Read `npx letsplayquiz guide --kind balance`, write a "pizza vs burgers" quiz, make it pass
-> `npx letsplayquiz validate test.json`, then publish it with `npx letsplayquiz publish test.json`.
+> `npx letsplayquiz validate quiz.json`, then publish it with `npx letsplayquiz publish quiz.json`.
 
 ## Global install
 
@@ -95,9 +95,9 @@ The `ownerUrl` (dashboard link) is **the only proof** that you created the quiz,
 
 ```sh
 npx letsplayquiz guide --kind type --json > guide.json
-# ... the AI reads guide.json and writes test.json ...
-npx letsplayquiz validate test.json
-npx letsplayquiz publish test.json
+# ... the AI reads guide.json and writes quiz.json ...
+npx letsplayquiz validate quiz.json
+npx letsplayquiz publish quiz.json
 npx letsplayquiz list
 ```
 

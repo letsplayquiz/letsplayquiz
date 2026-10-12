@@ -28,7 +28,7 @@ What you need:
   | Kind | `kind` | What players get | Good for |
   |---|---|---|---|
   | Score quiz | `score` | "7/10 — you know me well" | "how well do you know me", trivia, fandom facts |
-  | Personality test | `type` | "You're the Planner 📅" | "which X are you", 성격/유형 테스트, 診断 |
+  | Personality quiz | `type` | "You're the Planner 📅" | "which X are you", 성격/유형 테스트, 診断 |
   | Balance game | `balance` | their picks vs. what most players picked | this-or-that, 밸런스 게임, would-you-rather |
   | World cup | `worldcup` | a winner from an 8/16-candidate bracket | 이상형 월드컵, "best snack", ranking favorites |
   | Level quiz | `level` | "42 points — Pro" (total decides a level) | "how much of a X are you", 덕후 레벨 테스트, 〜レベル診断 |
