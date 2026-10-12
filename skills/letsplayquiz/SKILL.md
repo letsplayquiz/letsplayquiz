@@ -1,6 +1,6 @@
 ---
 name: letsplayquiz
-description: Make a shareable LetsPlayQuiz quiz together with the user — a friendship quiz, personality test ("which X are you?"), this-or-that balance game, or bracket "world cup" — then validate and publish it with the `letsplayquiz` CLI and hand back the share link. Use this whenever someone wants to create, draft, or publish a quiz, test, poll-style game, 밸런스 게임, 성격/유형 테스트, 우정 테스트, 이상형 월드컵, or 心理テスト/診断 to send to friends, even if they don't say "LetsPlayQuiz" or name a quiz type, and whenever they mention letsplayquiz.net, `npx letsplayquiz`, or `lpqz`.
+description: Make a shareable LetsPlayQuiz quiz together with the user — a friendship quiz, personality test ("which X are you?"), this-or-that balance game, bracket "world cup", or point-based level quiz — then validate and publish it with the `letsplayquiz` CLI and hand back the share link. Use this whenever someone wants to create, draft, or publish a quiz, test, poll-style game, 밸런스 게임, 성격/유형 테스트, 우정 테스트, 이상형 월드컵, or 心理テスト/診断 to send to friends, even if they don't say "LetsPlayQuiz" or name a quiz type, and whenever they mention letsplayquiz.net, `npx letsplayquiz`, or `lpqz`.
 ---
 
 # Make a LetsPlayQuiz quiz with the user
@@ -28,9 +28,10 @@ What you need:
   | Kind | `kind` | What players get | Good for |
   |---|---|---|---|
   | Score quiz | `score` | "7/10 — you know me well" | "how well do you know me", trivia, fandom facts |
-  | Personality test | `type` | "You're the Planner 📅" | "which X are you", 성격/유형 테스트, 診断 |
+  | Personality quiz | `type` | "You're the Planner 📅" | "which X are you", 성격/유형 테스트, 診断 |
   | Balance game | `balance` | their picks vs. what most players picked | this-or-that, 밸런스 게임, would-you-rather |
   | World cup | `worldcup` | a winner from an 8/16-candidate bracket | 이상형 월드컵, "best snack", ranking favorites |
+  | Level quiz | `level` | "42 points — Pro" (total decides a level) | "how much of a X are you", 덕후 레벨 테스트, 〜レベル診断 |
 
 - **Topic and audience** — who plays it (close friends, coworkers, a fandom) changes the tone and the jokes.
 - **Language** — `ko`, `ja` or `en`. Default to the language the user is writing in; that is also the language players see.
@@ -71,6 +72,9 @@ Show which result each choice leans toward (personality test) or which choice is
 ### What makes each kind fun
 
 - **Personality test (`type`)** — 3–5 result types that feel distinct and flattering; everyone should like their result. 6–10 questions with 3–4 choices each. Give each choice 2 points to its main type and optionally 1 to a neighbor, and make every type the main target of at least one choice per two or three questions, so every result is actually reachable and none dominates. Use `tieRule: "order"` with `tieResults: []` unless the user wants special results for ties. Result descriptions: 1–2 warm, specific sentences that sound like a friend describing you.
+  - **Axis form** — when the results are combinations of traits (E/I × N/S ...), write `kind: "type"` with `axes`, `results` (one per pole combination), `questions[].axis` and `choices[].pole` instead of `resultTypes`/`weights`; the server writes the weights. `guide --kind type` has the rules and an example. Never mix it with `resultTypes`, `tieResults`, `tieRule` or `weights`.
+  - **Matching (optional)** — `goodMatch` / `badMatch` on a result name the result that fits (or clashes) with it: a `resultTypes[].key`, or in the axis form an array of pole keys shaped like `poles`. Only for `type`; a type's two fields must differ.
+- **Level quiz (`level`)** — 2–16 levels in `resultTypes`, each with `minScore` (0–2000; the first is 0 and they strictly increase). Each choice is `{"points": n}` (integer 0–100, 0 is valid), 2–6 choices per question; `tieRule: "order"` and `tieResults: []`. The player's level is the last one whose `minScore` is at most their total, so make sure the possible totals actually reach every level (the server flags `level_unreachable` / `level_empty`).
 - **Score quiz (`score`)** — exactly 4 choices per question, one marked `{"correct": 1}`, the rest `{}`. 5–10 questions. Wrong choices should be plausible; for "how well do you know me", mix easy and hard ones.
 - **Balance game (`balance`)** — exactly 2 choices per question, both `{}`. 5–12 questions. Good ones are genuinely hard to choose; keep the two sides similar in length and appeal.
 - **World cup (`worldcup`)** — 8 or 16 candidates in `resultTypes` (`key`, `title`, `description` may be `""`), `questions: []`, `tieResults: []`. Candidates are names only (no images); pick ones that are instantly recognizable and roughly comparable.

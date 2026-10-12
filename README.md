@@ -17,6 +17,9 @@ Quiz kinds you can make:
 | Personality | `type` | No right answers; picks add up to a "you are the ___ type" result |
 | Balance | `balance` | This-or-that questions; players see what everyone else picked |
 | Bracket (world cup) | `worldcup` | 8 or 16 candidates face off one-on-one until a winner remains |
+| Level | `level` | Each choice is worth points; the total decides a level ("Rookie", "Pro", ...) |
+
+Personality quizzes (`type`) also support an axis form (`axes`: each result is a combination of trait poles, and the server writes the weights for you) and an optional best / worst match on each result (`goodMatch`, `badMatch`). `guide --kind type` and [`docs/api.md`](docs/api.md) have the details.
 
 No login is needed to create a quiz. Publishing returns a public play link and a secret owner (dashboard) link.
 
@@ -28,19 +31,19 @@ Requires Node.js 20 or newer. Nothing to install:
 
 ```sh
 npx letsplayquiz guide --kind balance   # rules + a complete example for one kind
-npx letsplayquiz validate test.json     # check without saving
-npx letsplayquiz publish test.json      # validate, then publish
-npx letsplayquiz list                   # tests published from this computer
+npx letsplayquiz validate quiz.json     # check without saving
+npx letsplayquiz publish quiz.json      # validate, then publish
+npx letsplayquiz list                   # quizzes published from this computer
 ```
 
 `lpqz` is a shorter alias: `npx lpqz guide`. Use `-` instead of a file name to read JSON from standard input.
 
 | Command | Description |
 |---|---|
-| `guide [--kind score\|type\|balance\|worldcup]` | Print the guide (all kinds if `--kind` is omitted) |
+| `guide [--kind score\|type\|balance\|worldcup\|level]` | Print the guide (all kinds if `--kind` is omitted) |
 | `validate <file \| ->` | Check a quiz JSON without saving it |
 | `publish <file \| ->` | Validate, then publish |
-| `list` | Show tests published from this computer, newest first (no network call) |
+| `list` | Show quizzes published from this computer, newest first (no network call) |
 
 | Option | Description |
 |---|---|

@@ -96,7 +96,7 @@ async function main() {
     await new Promise((resolve) => dropServer.listen(0, '127.0.0.1', resolve))
     try {
       const port = dropServer.address().port
-      const testFile = path.join(tmp, 'test.json')
+      const testFile = path.join(tmp, 'quiz.json')
       await writeFile(testFile, JSON.stringify({ kind: 'balance', title: '스모크 테스트' }))
       let publishFailed = false
       try {

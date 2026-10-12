@@ -17,6 +17,9 @@
 | タイプ診断 | `type` | 正解なし、選択が集計されて「あなたは___タイプ」と出る |
 | バランス | `balance` | 2択を選ぶ、みんなの選択も見られる |
 | トーナメント | `worldcup` | 候補8個または16個が1対1で戦い、優勝を決める |
+| レベル型 | `level` | 選択肢ごとに点数があり、合計でレベル(「初心者」「達人」など)が決まる |
+
+タイプ診断(`type`)は、軸形式(`axes`: 結果が性格の極の組み合わせで、重みはサーバーが埋める)と、結果ごとの相性の良い/悪いタイプ(`goodMatch`、`badMatch`、任意)にも対応しています。詳しくは `guide --kind type` と [`docs/api.md`](docs/api.md) を見てください。
 
 クイズの作成にログインは不要です。公開すると、遊ぶためのリンクと秘密のオーナー(ダッシュボード)リンクが返ります。
 
@@ -28,19 +31,19 @@ Node.js 20 以上が必要です。インストール不要で使えます。
 
 ```sh
 npx letsplayquiz guide --kind balance   # 種類ごとのルールと完成例
-npx letsplayquiz validate test.json     # 保存せずに検査
-npx letsplayquiz publish test.json      # 検査してから公開
-npx letsplayquiz list                   # このコンピューターで公開したテスト
+npx letsplayquiz validate quiz.json     # 保存せずに検査
+npx letsplayquiz publish quiz.json      # 検査してから公開
+npx letsplayquiz list                   # このコンピューターで公開したクイズ
 ```
 
 短く書くなら別名 `npx lpqz guide` です。ファイル名の代わりに `-` を渡すと標準入力から JSON を読みます。
 
 | コマンド | 説明 |
 |---|---|
-| `guide [--kind score\|type\|balance\|worldcup]` | ガイドを出力 (`--kind` 省略で全部) |
+| `guide [--kind score\|type\|balance\|worldcup\|level]` | ガイドを出力 (`--kind` 省略で全部) |
 | `validate <file \| ->` | 保存せずに検査のみ |
 | `publish <file \| ->` | 検査を通れば公開 |
-| `list` | このコンピューターで公開したテストを新しい順に表示 (サーバーは呼ばない) |
+| `list` | このコンピューターで公開したクイズを新しい順に表示 (サーバーは呼ばない) |
 
 | オプション | 説明 |
 |---|---|

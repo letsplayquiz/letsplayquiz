@@ -17,6 +17,9 @@
 | 유형형 | `type` | 정답 없음, 선택이 모여 "당신은 ___ 유형" 결과가 나옴 |
 | 밸런스 | `balance` | 둘 중 하나 고르기, 다른 사람들의 선택도 볼 수 있음 |
 | 월드컵 | `worldcup` | 후보 8개 또는 16개가 1:1로 맞붙어 우승자를 가림 |
+| 레벨형 | `level` | 선택지마다 점수가 있고, 합계로 레벨("초보", "고수" 등)이 정해짐 |
+
+유형형(`type`)은 축 형식(`axes`: 결과가 성향 극의 조합이고 가중치는 서버가 채움)과, 결과마다 잘 맞는/안 맞는 유형(`goodMatch`, `badMatch`, 선택)도 지원합니다. 자세한 내용은 `guide --kind type`과 [`docs/api.md`](docs/api.md)에 있습니다.
 
 퀴즈를 만들 때 로그인은 필요 없습니다. 발행하면 참여 링크와 비밀 대시보드(owner) 링크를 돌려줍니다.
 
@@ -28,19 +31,19 @@ Node.js 20 이상이 필요합니다. 설치 없이 바로 씁니다.
 
 ```sh
 npx letsplayquiz guide --kind balance   # 종류별 규칙과 완성 예시
-npx letsplayquiz validate test.json     # 저장하지 않고 검사
-npx letsplayquiz publish test.json      # 검사 후 발행
-npx letsplayquiz list                   # 이 컴퓨터에서 발행한 테스트
+npx letsplayquiz validate quiz.json     # 저장하지 않고 검사
+npx letsplayquiz publish quiz.json      # 검사 후 발행
+npx letsplayquiz list                   # 이 컴퓨터에서 발행한 퀴즈
 ```
 
 짧게는 별칭 `npx lpqz guide`로 씁니다. 파일 이름 자리에 `-`를 주면 표준 입력에서 JSON을 읽습니다.
 
 | 명령 | 설명 |
 |---|---|
-| `guide [--kind score\|type\|balance\|worldcup]` | 설명서 출력 (`--kind` 생략 시 전부) |
+| `guide [--kind score\|type\|balance\|worldcup\|level]` | 설명서 출력 (`--kind` 생략 시 전부) |
 | `validate <file \| ->` | 저장하지 않고 검사만 |
 | `publish <file \| ->` | 검사를 통과하면 발행 |
-| `list` | 이 컴퓨터에서 발행한 테스트를 최근 순으로 표시 (서버를 부르지 않음) |
+| `list` | 이 컴퓨터에서 발행한 퀴즈를 최근 순으로 표시 (서버를 부르지 않음) |
 
 | 옵션 | 설명 |
 |---|---|

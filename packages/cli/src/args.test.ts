@@ -9,6 +9,10 @@ describe('HELP_TEXT', () => {
     expect(HELP_TEXT).toContain('tests.jsonl')
     expect(HELP_TEXT).not.toMatch(/tests\.json(?!l)/)
   })
+
+  it('--kind 목록에 level이 있다', () => {
+    expect(HELP_TEXT).toContain('--kind score|type|balance|worldcup|level')
+  })
 })
 
 describe('parseArgs', () => {
@@ -25,6 +29,11 @@ describe('parseArgs', () => {
   it('--kind가 목록에 없으면 오류(2)를 낸다', () => {
     const outcome = parseArgs(['guide', '--kind', 'nope'], env())
     expect(outcome).toEqual({ kind: 'error', message: expect.stringContaining('nope'), exitCode: 2 })
+  })
+
+  it('--kind level을 받아들인다', () => {
+    const outcome = parseArgs(['guide', '--kind', 'level'], env())
+    expect(outcome).toMatchObject({ kind: 'run', args: { command: 'guide', kind: 'level' } })
   })
 
   it('--lang이 목록에 없으면 오류(2)를 낸다', () => {

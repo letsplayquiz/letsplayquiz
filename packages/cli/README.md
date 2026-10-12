@@ -1,6 +1,6 @@
 # letsplayquiz
 
-A CLI for AI agents to create and publish [LetsPlayQuiz](https://letsplayquiz.net) quizzes (score, personality type, balance game, and bracket "world cup"). Run it with `npx`, no install needed. For a shorter name use the alias `lpqz` (the [`lpqz` package](https://www.npmjs.com/package/lpqz) runs this same CLI).
+A CLI for AI agents to create and publish [LetsPlayQuiz](https://letsplayquiz.net) quizzes (score, personality type, balance game, bracket "world cup", and point-based level). Run it with `npx`, no install needed. For a shorter name use the alias `lpqz` (the [`lpqz` package](https://www.npmjs.com/package/lpqz) runs this same CLI).
 
 Source, issues, the Claude skill and the full API reference live at [github.com/letsplayquiz/letsplayquiz](https://github.com/letsplayquiz/letsplayquiz).
 
@@ -14,7 +14,7 @@ npx letsplayquiz guide --kind balance
 This prints the rules for that quiz kind plus a complete example JSON that passes validation. Then ask your AI agent something like:
 
 > Read `npx letsplayquiz guide --kind balance`, write a "pizza vs burgers" quiz, make it pass
-> `npx letsplayquiz validate test.json`, then publish it with `npx letsplayquiz publish test.json`.
+> `npx letsplayquiz validate quiz.json`, then publish it with `npx letsplayquiz publish quiz.json`.
 
 ## Global install
 
@@ -29,7 +29,7 @@ This package registers only the `letsplayquiz` command. The short `lpqz` command
 
 | Command | Description |
 |---|---|
-| `guide [--kind score\|type\|balance\|worldcup]` | Print the guide (all kinds if omitted) |
+| `guide [--kind score\|type\|balance\|worldcup\|level]` | Print the guide (all kinds if omitted) |
 | `validate <file \| ->` | Check a quiz without saving it |
 | `publish <file \| ->` | Publish a quiz once it passes validation |
 | `list` | Show quizzes published from this computer, newest first (does not call the server) |
@@ -95,9 +95,9 @@ The `ownerUrl` (dashboard link) is **the only proof** that you created the quiz,
 
 ```sh
 npx letsplayquiz guide --kind type --json > guide.json
-# ... the AI reads guide.json and writes test.json ...
-npx letsplayquiz validate test.json
-npx letsplayquiz publish test.json
+# ... the AI reads guide.json and writes quiz.json ...
+npx letsplayquiz validate quiz.json
+npx letsplayquiz publish quiz.json
 npx letsplayquiz list
 ```
 
