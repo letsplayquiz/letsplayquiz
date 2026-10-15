@@ -314,6 +314,76 @@ describe('list 명령', () => {
   })
 })
 
+describe('list의 ownerUrl 노출', () => {
+  // ownerUrl은 창작자임을 증명하는 유일한 비밀이다. list --json은 에이전트의 컨텍스트·CI 로그로
+  // 곧장 흘러가므로, 기본은 빼고 --show-owner를 줄 때만 넣는다(MCP list_my_quizzes의 includeOwnerUrls와 같은 원칙).
+  const records = [
+    {
+      slug: 'aaaaaaaa',
+      title: '첫 번째',
+      kind: 'balance',
+      url: 'https://letsplayquiz.net/t/aaaaaaaa',
+      ownerUrl: 'https://letsplayquiz.net/t/aaaaaaaa/owner/TOKEN-ONE',
+      api: 'https://letsplayquiz.net',
+      publishedAt: '2026-10-01T00:00:00.000Z',
+    },
+    {
+      slug: 'bbbbbbbb',
+      title: '두 번째',
+      kind: 'score',
+      url: 'https://letsplayquiz.net/t/bbbbbbbb',
+      ownerUrl: 'https://letsplayquiz.net/t/bbbbbbbb/owner/TOKEN-TWO',
+      api: 'https://letsplayquiz.net',
+      publishedAt: '2026-10-02T00:00:00.000Z',
+    },
+  ]
+
+  async function seed() {
+    const configDir = path.join(tmpHome, '.config', 'letsplayquiz')
+    await fs.mkdir(configDir, { recursive: true })
+    await fs.writeFile(path.join(configDir, 'tests.jsonl'), records.map((r) => `${JSON.stringify(r)}\n`).join(''))
+  }
+
+  it('--json은 기본으로 ownerUrl을 뺀다(다른 필드는 그대로, 최신순)', async () => {
+    await seed()
+    const io = makeIo()
+    expect(await run(['list', '--json'], io)).toBe(0)
+    const out = JSON.parse(io.stdoutText()) as Record<string, unknown>[]
+    expect(out.map((r) => r.slug)).toEqual(['bbbbbbbb', 'aaaaaaaa'])
+    for (const r of out) expect('ownerUrl' in r).toBe(false)
+    expect(out[0]).toMatchObject({ title: '두 번째', kind: 'score', url: 'https://letsplayquiz.net/t/bbbbbbbb', api: 'https://letsplayquiz.net' })
+    expect(io.stdoutText()).not.toContain('TOKEN-')
+  })
+
+  it('--json --show-owner면 ownerUrl을 넣는다', async () => {
+    await seed()
+    const io = makeIo()
+    expect(await run(['list', '--json', '--show-owner'], io)).toBe(0)
+    const out = JSON.parse(io.stdoutText()) as Record<string, unknown>[]
+    expect(out.map((r) => r.ownerUrl)).toEqual([records[1].ownerUrl, records[0].ownerUrl])
+  })
+
+  it('사람용 출력도 기본은 ownerUrl을 보이지 않고, --show-owner를 줘야 보인다', async () => {
+    await seed()
+    const plain = makeIo()
+    expect(await run(['list'], plain)).toBe(0)
+    expect(plain.stdoutText()).toContain('두 번째')
+    expect(plain.stdoutText()).not.toContain('TOKEN-')
+
+    const shown = makeIo()
+    expect(await run(['list', '--show-owner'], shown)).toBe(0)
+    expect(shown.stdoutText()).toContain('두 번째')
+    expect(shown.stdoutText()).toContain('ownerUrl: https://letsplayquiz.net/t/bbbbbbbb/owner/TOKEN-TWO')
+    expect(shown.stdoutText()).toContain('ownerUrl: https://letsplayquiz.net/t/aaaaaaaa/owner/TOKEN-ONE')
+  })
+
+  it('기록이 없을 때 --show-owner를 줘도 안내 문구가 나온다', async () => {
+    const io = makeIo()
+    expect(await run(['list', '--show-owner'], io)).toBe(0)
+    expect(io.stdoutText()).toContain('없어요')
+  })
+})
+
 describe('공통', () => {
   it('명령 없이 부르면 도움말 + 2', async () => {
     const io = makeIo()

@@ -47,7 +47,8 @@ npx letsplayquiz list                   # quizzes published from this computer
 
 | Option | Description |
 |---|---|
-| `--json` | Print the server response (or the `list` records) as-is |
+| `--json` | Print the server response (or the `list` records) as-is. `list` leaves out each `ownerUrl` unless you add `--show-owner` |
+| `--show-owner` | Include the secret owner (dashboard) link in `list` output (with or without `--json`) |
 | `--lang ko\|ja\|en` | Language of server messages (`lang` query); default `ko` |
 | `--api <url>` | Server URL. `https` only (`http://localhost` and `http://127.0.0.1` are allowed for local development). Also settable with the `LETSPLAYQUIZ_API` environment variable (the flag wins). Default `https://letsplayquiz.net` |
 | `--no-save` | Do not record the `publish` result locally |

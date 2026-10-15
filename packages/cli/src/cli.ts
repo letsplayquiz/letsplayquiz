@@ -303,8 +303,12 @@ async function runList(args: ParsedArgs, io: Io): Promise<number> {
   const { records, warning } = await loadRecords(storeIo(io))
   if (warning) io.stderr(`${warning}\n`)
   const sorted = [...records].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+  // ownerUrl은 창작자임을 증명하는 유일한 비밀이다. --json 출력은 에이전트의 컨텍스트나 CI 로그로
+  // 곧장 흘러가므로 기본은 뺀다 — --show-owner를 줄 때만 넣는다(MCP list_my_quizzes의
+  // includeOwnerUrls와 같은 원칙). 사람용 출력도 같다.
   if (args.json) {
-    io.stdout(`${JSON.stringify(sorted)}\n`)
+    const shown = args.showOwner ? sorted : sorted.map(({ ownerUrl: _ownerUrl, ...rest }) => rest)
+    io.stdout(`${JSON.stringify(shown)}\n`)
     return 0
   }
   if (sorted.length === 0) {
@@ -313,6 +317,7 @@ async function runList(args: ParsedArgs, io: Io): Promise<number> {
   }
   for (const record of sorted) {
     io.stdout(`${record.publishedAt}  ${record.kind}  ${record.title}  ${record.url}\n`)
+    if (args.showOwner) io.stdout(`  ownerUrl: ${record.ownerUrl}\n`)
   }
   return 0
 }

@@ -47,7 +47,8 @@ npx letsplayquiz list                   # 이 컴퓨터에서 발행한 퀴즈
 
 | 옵션 | 설명 |
 |---|---|
-| `--json` | 서버 응답(또는 `list`의 기록)을 그대로 출력 |
+| `--json` | 서버 응답(또는 `list`의 기록)을 그대로 출력. `list`는 `--show-owner`를 주지 않으면 `ownerUrl`을 뺍니다 |
+| `--show-owner` | `list` 출력(`--json` 여부와 무관)에 비밀 owner(대시보드) 링크도 포함 |
 | `--lang ko\|ja\|en` | 서버 메시지 언어(쿼리 `lang`), 기본 `ko` |
 | `--api <url>` | 서버 주소. `https`만 허용(로컬 개발은 `http://localhost`, `http://127.0.0.1` 예외). 환경변수 `LETSPLAYQUIZ_API`로도 설정(플래그가 우선). 기본값 `https://letsplayquiz.net` |
 | `--no-save` | `publish` 결과를 로컬 기록에 남기지 않음 |

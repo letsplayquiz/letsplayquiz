@@ -10,6 +10,11 @@ describe('HELP_TEXT', () => {
     expect(HELP_TEXT).not.toMatch(/tests\.json(?!l)/)
   })
 
+  it('--show-owner를 안내하고 --json이 ownerUrl을 뺀다고 알린다', () => {
+    expect(HELP_TEXT).toContain('--show-owner')
+    expect(HELP_TEXT).toMatch(/--json[^\n]*ownerUrl/)
+  })
+
   it('--kind 목록에 level이 있다', () => {
     expect(HELP_TEXT).toContain('--kind score|type|balance|worldcup|level')
   })
@@ -34,6 +39,11 @@ describe('parseArgs', () => {
   it('--kind level을 받아들인다', () => {
     const outcome = parseArgs(['guide', '--kind', 'level'], env())
     expect(outcome).toMatchObject({ kind: 'run', args: { command: 'guide', kind: 'level' } })
+  })
+
+  it('--show-owner는 기본 false, 주면 true', () => {
+    expect(parseArgs(['list'], env())).toMatchObject({ kind: 'run', args: { showOwner: false } })
+    expect(parseArgs(['list', '--show-owner'], env())).toMatchObject({ kind: 'run', args: { showOwner: true } })
   })
 
   it('--lang이 목록에 없으면 오류(2)를 낸다', () => {
@@ -94,6 +104,7 @@ describe('parseArgs', () => {
         lang: 'ja',
         api: DEFAULT_API,
         noSave: false,
+        showOwner: false,
       },
     })
   })

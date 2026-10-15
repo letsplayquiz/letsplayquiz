@@ -24,6 +24,8 @@ export interface ParsedArgs {
   lang?: Lang
   api: string
   noSave: boolean
+  /** list에서 ownerUrl(창작자 전용 비밀 링크)도 보여 줄지. 기본 false. */
+  showOwner: boolean
 }
 
 export type ParseOutcome =
@@ -41,10 +43,11 @@ export const HELP_TEXT = `letsplayquiz — AI 에이전트로 LetsPlayQuiz 퀴�
   letsplayquiz list
 
 공통 옵션:
-  --json          서버 응답(또는 list의 기록)을 그대로 출력
+  --json          서버 응답(또는 list의 기록)을 그대로 출력. list는 ownerUrl을 뺌(--show-owner로 넣음)
   --lang ko|ja|en 서버 메시지 언어(쿼리 lang)
   --api <url>     서버 주소. https만 허용(로컬 개발은 http://localhost, http://127.0.0.1 예외).
                   기본값: ${DEFAULT_API}, 환경변수 LETSPLAYQUIZ_API로도 설정 가능
+  --show-owner    list에서 ownerUrl(창작자 전용 대시보드 링크, 비밀)도 보여 줌
   --no-save       publish 결과를 ~/.config/letsplayquiz/tests.jsonl(XDG_CONFIG_HOME이 있으면 그 아래)에 남기지 않음
   --help          도움말 출력
   --version       버전 출력
@@ -91,6 +94,7 @@ export function parseArgs(argv: string[], env: NodeJS.ProcessEnv): ParseOutcome 
         lang: { type: 'string' },
         api: { type: 'string' },
         'no-save': { type: 'boolean', default: false },
+        'show-owner': { type: 'boolean', default: false },
         help: { type: 'boolean', default: false },
         version: { type: 'boolean', default: false },
       },
@@ -155,6 +159,7 @@ export function parseArgs(argv: string[], env: NodeJS.ProcessEnv): ParseOutcome 
       lang,
       api,
       noSave: Boolean(parsed.values['no-save']),
+      showOwner: Boolean(parsed.values['show-owner']),
     },
   }
 }

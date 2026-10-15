@@ -47,7 +47,8 @@ npx letsplayquiz list                   # このコンピューターで公開�
 
 | オプション | 説明 |
 |---|---|
-| `--json` | サーバーの応答 (または `list` の記録) をそのまま出力 |
+| `--json` | サーバーの応答 (または `list` の記録) をそのまま出力。`list` は `--show-owner` を付けない限り `ownerUrl` を除きます |
+| `--show-owner` | `list` の出力 (`--json` の有無を問わず) に秘密のオーナー (ダッシュボード) リンクも含める |
 | `--lang ko\|ja\|en` | サーバーメッセージの言語 (クエリ `lang`)、既定は `ko` |
 | `--api <url>` | サーバーの URL。`https` のみ可 (ローカル開発は `http://localhost`、`http://127.0.0.1` が例外)。環境変数 `LETSPLAYQUIZ_API` でも指定可 (フラグが優先)。既定値 `https://letsplayquiz.net` |
 | `--no-save` | `publish` の結果をローカルに記録しない |

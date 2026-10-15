@@ -38,6 +38,14 @@ describe('skills/letsplayquiz/SKILL.md', () => {
     })
   })
 
+  // list는 ownerUrl을 기본으로 숨긴다 — 스킬이 에이전트에게 그걸 먼저 알려야 한다.
+  it('list가 ownerUrl을 숨기고 --show-owner는 사용자가 요청할 때만 쓰라고 안내한다', () => {
+    const line = skill.split('\n').find((l) => l.includes('--show-owner')) ?? ''
+    expect(line).not.toBe('')
+    expect(line).toMatch(/ownerUrl/)
+    expect(line).toMatch(/explicitly asks/i)
+  })
+
   // 검수 차단(moderation_blocked)은 publish에서만 나온다(validate로 미리 잡히지 않는다).
   // 에이전트가 혼자 내용을 바꿔 몰래 다시 시도하면 사용자가 모르는 새 내용이 발행된다.
   describe('moderation_blocked 안내', () => {

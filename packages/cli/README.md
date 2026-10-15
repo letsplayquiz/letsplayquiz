@@ -50,7 +50,8 @@ Kind-specific fields (`kind`, `questions`, `resultTypes`, …) are described wit
 
 | Option | Description |
 |---|---|
-| `--json` | Print the raw server response (or the `list` records) |
+| `--json` | Print the raw server response (or the `list` records). `list` leaves out each `ownerUrl` unless you add `--show-owner` |
+| `--show-owner` | Include the secret `ownerUrl` (dashboard link) in `list` output, with or without `--json`. Without it `list` never prints dashboard links, so it is safe to run where the output is logged |
 | `--lang ko\|ja\|en` | Language of server text (query `lang`, default `ko`): validation messages, errors, and the `guide` text and examples. The CLI's own messages (connection failures, exit hints) are currently in Korean |
 | `--api <url>` | Server URL. `https` only (`http://localhost` and `http://127.0.0.1` are allowed for local development; other `http` URLs are refused because the dashboard link would travel in plain text). Also settable with the `LETSPLAYQUIZ_API` environment variable (the flag wins). Default `https://letsplayquiz.net`. The CLI never follows redirects (a redirect could send your quiz to another address, or past the `https` check): if the server answers with one, it exits `4`, prints the `Location` and asks you to pass that server address with `--api` |
 | `--no-save` | Do not record the `publish` result in the local history file |
