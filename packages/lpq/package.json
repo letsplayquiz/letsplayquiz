@@ -1,7 +1,7 @@
 {
-  "name": "lpqz",
+  "name": "lpq",
   "version": "0.1.0",
-  "description": "Short alias for the letsplayquiz CLI. Run `npx lpqz ...`.",
+  "description": "Short alias for the letsplayquiz CLI. Run `npx lpq ...`.",
   "keywords": [
     "quiz",
     "personality-test",
@@ -18,14 +18,14 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/letsplayquiz/letsplayquiz.git",
-    "directory": "packages/lpqz"
+    "directory": "packages/lpq"
   },
   "bugs": {
     "url": "https://github.com/letsplayquiz/letsplayquiz/issues"
   },
   "type": "module",
   "bin": {
-    "lpqz": "bin.js"
+    "lpq": "bin.js"
   },
   "files": [
     "bin.js",

@@ -19,7 +19,7 @@ const npmCommand = isWindows ? 'npm.cmd' : 'npm'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const cliDir = path.join(here, '..')
-const lpqzDir = path.join(here, '..', '..', 'lpqz')
+const lpqDir = path.join(here, '..', '..', 'lpq')
 
 function readJson(file: string): Record<string, unknown> {
   return JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
@@ -32,15 +32,15 @@ describe('packages/cli package.json', () => {
     expect(pkg.name).toBe('letsplayquiz')
   })
 
-  // T1 리뷰 1번: 두 패키지가 같은 bin 이름(lpqz)을 선언하면 둘 다 전역
+  // T1 리뷰 1번: 두 패키지가 같은 bin 이름(lpq)을 선언하면 둘 다 전역
   // 설치할 때 EEXIST로 실패한다. 본 패키지의 bin은 letsplayquiz 하나뿐이고,
-  // lpqz는 연결 패키지(packages/lpqz)만 선언한다 — 아래 두 describe의
+  // lpq는 연결 패키지(packages/lpq)만 선언한다 — 아래 두 describe의
   // "겹치지 않음" 테스트가 이걸 같이 확인한다.
-  it('bin은 letsplayquiz 하나뿐이다(lpqz는 없음)', () => {
+  it('bin은 letsplayquiz 하나뿐이다(lpq는 없음)', () => {
     expect(pkg.bin).toEqual({ letsplayquiz: 'dist/bin.js' })
   })
 
-  // T1 리뷰 3번: lpqz/bin.js가 `letsplayquiz/dist/bin.js`를 직접 import한다
+  // T1 리뷰 3번: lpq/bin.js가 `letsplayquiz/dist/bin.js`를 직접 import한다
   // (스펙 §7.3). 본 패키지가 exports를 두게 되면 그 경로가 막힐 수 있으니,
   // exports가 없거나 있다면 './dist/bin.js'가 열려 있음을 고정한다.
   it('exports가 없거나, 있으면 ./dist/bin.js가 열려 있다', () => {
@@ -61,42 +61,42 @@ describe('packages/cli package.json', () => {
   })
 })
 
-describe('packages/lpqz package.json', () => {
+describe('packages/lpq package.json', () => {
   const cliPkg = readJson(path.join(cliDir, 'package.json'))
-  const lpqzPkg = readJson(path.join(lpqzDir, 'package.json'))
+  const lpqPkg = readJson(path.join(lpqDir, 'package.json'))
 
-  it('name이 lpqz다', () => {
-    expect(lpqzPkg.name).toBe('lpqz')
+  it('name이 lpq다', () => {
+    expect(lpqPkg.name).toBe('lpq')
   })
 
   it('bin이 bin.js를 가리키고 files에 포함된다', () => {
-    expect(lpqzPkg.bin).toEqual({ lpqz: 'bin.js' })
-    expect(lpqzPkg.files).toContain('bin.js')
+    expect(lpqPkg.bin).toEqual({ lpq: 'bin.js' })
+    expect(lpqPkg.files).toContain('bin.js')
   })
 
   it('두 패키지의 bin 이름이 겹치지 않는다(전역 설치 EEXIST 방지)', () => {
     const cliBinNames = Object.keys(cliPkg.bin as Record<string, string>)
-    const lpqzBinNames = Object.keys(lpqzPkg.bin as Record<string, string>)
+    const lpqBinNames = Object.keys(lpqPkg.bin as Record<string, string>)
     expect(cliBinNames).toEqual(['letsplayquiz'])
-    expect(lpqzBinNames).toEqual(['lpqz'])
-    expect(cliBinNames.some((n) => lpqzBinNames.includes(n))).toBe(false)
+    expect(lpqBinNames).toEqual(['lpq'])
+    expect(cliBinNames.some((n) => lpqBinNames.includes(n))).toBe(false)
   })
 
   it('type이 module이다', () => {
-    expect(lpqzPkg.type).toBe('module')
+    expect(lpqPkg.type).toBe('module')
   })
 
   it('버전이 본 패키지와 같다', () => {
-    expect(lpqzPkg.version).toBe(cliPkg.version)
+    expect(lpqPkg.version).toBe(cliPkg.version)
   })
 
   it('letsplayquiz 의존성 버전이 본 패키지 버전과 맞는다', () => {
-    const deps = lpqzPkg.dependencies as Record<string, string>
+    const deps = lpqPkg.dependencies as Record<string, string>
     expect(deps.letsplayquiz).toBe(cliPkg.version)
   })
 
   it('npm pack --dry-run --json의 파일 목록에 bin.js가 있다(빌드 불필요)', () => {
-    const out = execFileSync(npmCommand, ['pack', '--dry-run', '--json'], { cwd: lpqzDir, encoding: 'utf8', shell: isWindows })
+    const out = execFileSync(npmCommand, ['pack', '--dry-run', '--json'], { cwd: lpqDir, encoding: 'utf8', shell: isWindows })
     const [result] = JSON.parse(out) as { files: { path: string }[] }[]
     expect(result.files.some((f) => f.path === 'bin.js')).toBe(true)
   })

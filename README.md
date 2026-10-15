@@ -5,7 +5,7 @@
 [LetsPlayQuiz](https://letsplayquiz.net) turns one link into a quiz your friends can play on their phones. This repository holds the tools around its public API, so AI agents (and you) can create and publish quizzes from the terminal:
 
 - **`letsplayquiz`** (`packages/cli`): the command-line client.
-- **`lpqz`** (`packages/lpqz`): a short alias package that runs the same CLI (`npx lpqz ...`).
+- **`lpq`** (`packages/lpq`): a short alias package that runs the same CLI (`npx lpq ...`).
 - **`skills/letsplayquiz`**: a Claude skill that drives the CLI to design a quiz with you.
 - **[`docs/api.md`](docs/api.md)**: the public HTTP API v1 contract.
 
@@ -36,7 +36,7 @@ npx letsplayquiz publish quiz.json      # validate, then publish
 npx letsplayquiz list                   # quizzes published from this computer
 ```
 
-`lpqz` is a shorter alias: `npx lpqz guide`. Use `-` instead of a file name to read JSON from standard input.
+`lpq` is a shorter alias: `npx lpq guide`. Use `-` instead of a file name to read JSON from standard input.
 
 | Command | Description |
 |---|---|
@@ -105,7 +105,7 @@ pnpm build    # compile packages
 pnpm smoke    # build + run the built CLI and MCP server against a local mock server
 ```
 
-Publishing to npm: `letsplayquiz` first, then `lpqz` and `letsplayquiz-mcp` (both depend on the exact `letsplayquiz` version).
+Publishing to npm: `letsplayquiz` first, then `lpq` and `letsplayquiz-mcp` (both depend on the exact `letsplayquiz` version).
 
 The server owns all quiz rules; the CLI must not duplicate or bypass them. Please keep changes small and add tests for behavior changes.
 

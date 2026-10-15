@@ -5,7 +5,7 @@
 [LetsPlayQuiz](https://letsplayquiz.net)는 링크 하나로 친구들이 휴대폰에서 풀 수 있는 퀴즈를 만들어 주는 서비스입니다. 이 저장소에는 공개 API를 둘러싼 도구가 들어 있어서, AI 에이전트(그리고 당신)가 터미널에서 퀴즈를 만들고 발행할 수 있습니다.
 
 - **`letsplayquiz`** (`packages/cli`): 명령줄 클라이언트
-- **`lpqz`** (`packages/lpqz`): 같은 CLI를 실행하는 짧은 별칭 패키지 (`npx lpqz ...`)
+- **`lpq`** (`packages/lpq`): 같은 CLI를 실행하는 짧은 별칭 패키지 (`npx lpq ...`)
 - **`skills/letsplayquiz`**: CLI를 써서 당신과 함께 퀴즈를 설계하는 Claude 스킬
 - **[`docs/api.md`](docs/api.md)**: 공개 HTTP API v1 계약서 (영어)
 
@@ -36,7 +36,7 @@ npx letsplayquiz publish quiz.json      # 검사 후 발행
 npx letsplayquiz list                   # 이 컴퓨터에서 발행한 퀴즈
 ```
 
-짧게는 별칭 `npx lpqz guide`로 씁니다. 파일 이름 자리에 `-`를 주면 표준 입력에서 JSON을 읽습니다.
+짧게는 별칭 `npx lpq guide`로 씁니다. 파일 이름 자리에 `-`를 주면 표준 입력에서 JSON을 읽습니다.
 
 | 명령 | 설명 |
 |---|---|
@@ -152,7 +152,7 @@ pnpm build    # 패키지 빌드
 pnpm smoke    # 빌드 후 로컬 모의 서버로 빌드된 CLI 실행
 ```
 
-npm 배포는 `letsplayquiz`를 먼저, 그다음 `lpqz`와 `letsplayquiz-mcp` 순서로 합니다(둘 다 `letsplayquiz`의 정확한 버전에 의존).
+npm 배포는 `letsplayquiz`를 먼저, 그다음 `lpq`와 `letsplayquiz-mcp` 순서로 합니다(둘 다 `letsplayquiz`의 정확한 버전에 의존).
 
 퀴즈 규칙은 모두 서버가 갖습니다. CLI에서 규칙을 중복하거나 우회하지 마세요. 변경은 작게, 동작이 바뀌면 테스트도 더해 주세요.
 

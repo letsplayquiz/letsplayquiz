@@ -1,11 +1,11 @@
 ---
 name: letsplayquiz
-description: Make a shareable LetsPlayQuiz quiz together with the user — a friendship quiz, personality test ("which X are you?"), this-or-that balance game, bracket "world cup", or point-based level quiz — then validate and publish it with the `letsplayquiz` CLI and hand back the share link. Use this whenever someone wants to create, draft, or publish a quiz, test, poll-style game, 밸런스 게임, 성격/유형 테스트, 우정 테스트, 이상형 월드컵, or 心理テスト/診断 to send to friends, even if they don't say "LetsPlayQuiz" or name a quiz type, and whenever they mention letsplayquiz.net, `npx letsplayquiz`, or `lpqz`.
+description: Make a shareable LetsPlayQuiz quiz together with the user — a friendship quiz, personality test ("which X are you?"), this-or-that balance game, bracket "world cup", or point-based level quiz — then validate and publish it with the `letsplayquiz` CLI and hand back the share link. Use this whenever someone wants to create, draft, or publish a quiz, test, poll-style game, 밸런스 게임, 성격/유형 테스트, 우정 테스트, 이상형 월드컵, or 心理テスト/診断 to send to friends, even if they don't say "LetsPlayQuiz" or name a quiz type, and whenever they mention letsplayquiz.net, `npx letsplayquiz`, or `lpq`.
 ---
 
 # Make a LetsPlayQuiz quiz with the user
 
-LetsPlayQuiz (https://letsplayquiz.net) turns one link into a quiz friends can play on their phones. The `letsplayquiz` CLI (alias `lpqz`, run with `npx`, nothing to install) talks to its public API: the **server owns every rule**, the CLI never bypasses them. Your job is the part the server can't do: turn a vague idea into a fun, well-balanced quiz the user actually likes, with as little back-and-forth as possible, and publish only when they say so.
+LetsPlayQuiz (https://letsplayquiz.net) turns one link into a quiz friends can play on their phones. The `letsplayquiz` CLI (alias `lpq`, run with `npx`, nothing to install) talks to its public API: the **server owns every rule**, the CLI never bypasses them. Your job is the part the server can't do: turn a vague idea into a fun, well-balanced quiz the user actually likes, with as little back-and-forth as possible, and publish only when they say so.
 
 The flow:
 

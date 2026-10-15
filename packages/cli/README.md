@@ -1,6 +1,6 @@
 # letsplayquiz
 
-A CLI for AI agents to create and publish [LetsPlayQuiz](https://letsplayquiz.net) quizzes (score, personality type, balance game, bracket "world cup", and point-based level). Run it with `npx`, no install needed. For a shorter name use the alias `lpqz` (the [`lpqz` package](https://www.npmjs.com/package/lpqz) runs this same CLI).
+A CLI for AI agents to create and publish [LetsPlayQuiz](https://letsplayquiz.net) quizzes (score, personality type, balance game, bracket "world cup", and point-based level). Run it with `npx`, no install needed. For a shorter name use the alias `lpq` (the [`lpq` package](https://www.npmjs.com/package/lpq) runs this same CLI).
 
 Source, issues, the Claude skill and the full API reference live at [github.com/letsplayquiz/letsplayquiz](https://github.com/letsplayquiz/letsplayquiz).
 
@@ -8,7 +8,7 @@ Source, issues, the Claude skill and the full API reference live at [github.com/
 
 ```sh
 npx letsplayquiz guide --kind balance
-# shorter: npx lpqz guide --kind balance
+# shorter: npx lpq guide --kind balance
 ```
 
 This prints the rules for that quiz kind plus a complete example JSON that passes validation. Then ask your AI agent something like:
@@ -18,12 +18,12 @@ This prints the rules for that quiz kind plus a complete example JSON that passe
 
 ## Global install
 
-This package registers only the `letsplayquiz` command. The short `lpqz` command is registered by the separate [`lpqz`](https://www.npmjs.com/package/lpqz) package (two packages declaring the same bin name would collide with `EEXIST` on global install).
+This package registers only the `letsplayquiz` command. The short `lpq` command is registered by the separate [`lpq`](https://www.npmjs.com/package/lpq) package (two packages declaring the same bin name would collide with `EEXIST` on global install).
 
 | Install | Command |
 |---|---|
 | `npm i -g letsplayquiz` | `letsplayquiz` |
-| `npm i -g lpqz` | `lpqz` |
+| `npm i -g lpq` | `lpq` |
 
 ## Commands
 

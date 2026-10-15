@@ -6,7 +6,7 @@
 // 버그의 회귀 방지).
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -122,18 +122,24 @@ async function main() {
     }
     console.log('OK  letsplayquiz npm pack --dry-run 파일 목록에 dist/bin.js가 있음')
 
-    // 6) 연결 패키지 packages/lpqz/bin.js를 실행하면 본 CLI와 같은 결과가
-    // 나오는지(스펙 §7.3, §10 — "연결 패키지를 실행하면 본 CLI와 같은
-    // 결과가 나온다(스모크)"). 빌드 없이 저장소에 그대로 커밋된 파일이라
-    // dist/bin.js가 이미 있으면 바로 실행할 수 있다.
-    const lpqzBin = path.join(here, '..', '..', 'lpqz', 'bin.js')
-    const lpqzVersion = await execFileAsync(process.execPath, [lpqzBin, '--version'])
-    if (lpqzVersion.stdout !== versionResult.stdout) {
+    // 6) 별칭 패키지 packages/lpq를 실행하면 본 CLI와 같은 결과가 나오는지
+    // (스펙 §7.3, §10 — "연결 패키지를 실행하면 본 CLI와 같은 결과가 나온다
+    // (스모크)"). 별칭 패키지는 package.json의 bin 항목(lpq)이 가리키는 파일을
+    // 실행한다. 빌드 없이 저장소에 그대로 커밋된 파일이라 dist/bin.js가 이미
+    // 있으면 바로 실행할 수 있다.
+    const lpqDir = path.join(here, '..', '..', 'lpq')
+    const lpqPkg = JSON.parse(await readFile(path.join(lpqDir, 'package.json'), 'utf8'))
+    if (!lpqPkg.bin || typeof lpqPkg.bin.lpq !== 'string') {
+      throw new Error(`packages/lpq/package.json의 bin에 lpq가 없어요: ${JSON.stringify(lpqPkg.bin)}`)
+    }
+    const lpqBin = path.join(lpqDir, lpqPkg.bin.lpq)
+    const lpqVersion = await execFileAsync(process.execPath, [lpqBin, '--version'])
+    if (lpqVersion.stdout !== versionResult.stdout) {
       throw new Error(
-        `lpqz --version이 본 CLI와 달라요: ${JSON.stringify(lpqzVersion.stdout)} !== ${JSON.stringify(versionResult.stdout)}`,
+        `lpq --version이 본 CLI와 달라요: ${JSON.stringify(lpqVersion.stdout)} !== ${JSON.stringify(versionResult.stdout)}`,
       )
     }
-    console.log('OK  packages/lpqz/bin.js --version이 본 CLI와 같음:', lpqzVersion.stdout.trim())
+    console.log('OK  lpq(packages/lpq) --version이 본 CLI와 같음:', lpqVersion.stdout.trim())
   } finally {
     await rm(tmp, { recursive: true, force: true })
   }

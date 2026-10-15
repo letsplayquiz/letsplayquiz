@@ -20,7 +20,7 @@ importers:
 
   packages/cli: {}
 
-  packages/lpqz:
+  packages/lpq:
     dependencies:
       letsplayquiz:
         specifier: 0.1.0

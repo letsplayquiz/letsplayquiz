@@ -5,7 +5,7 @@
 [LetsPlayQuiz](https://letsplayquiz.net) は、リンク1つで友だちがスマホで遊べるクイズを作れるサービスです。このリポジトリには公開 API まわりのツールが入っていて、AI エージェント(とあなた)がターミナルからクイズを作って公開できます。
 
 - **`letsplayquiz`** (`packages/cli`): コマンドラインクライアント
-- **`lpqz`** (`packages/lpqz`): 同じ CLI を実行する短い別名パッケージ (`npx lpqz ...`)
+- **`lpq`** (`packages/lpq`): 同じ CLI を実行する短い別名パッケージ (`npx lpq ...`)
 - **`skills/letsplayquiz`**: CLI を使ってあなたと一緒にクイズを設計する Claude スキル
 - **[`docs/api.md`](docs/api.md)**: 公開 HTTP API v1 の仕様 (英語)
 
@@ -36,7 +36,7 @@ npx letsplayquiz publish quiz.json      # 検査してから公開
 npx letsplayquiz list                   # このコンピューターで公開したクイズ
 ```
 
-短く書くなら別名 `npx lpqz guide` です。ファイル名の代わりに `-` を渡すと標準入力から JSON を読みます。
+短く書くなら別名 `npx lpq guide` です。ファイル名の代わりに `-` を渡すと標準入力から JSON を読みます。
 
 | コマンド | 説明 |
 |---|---|
@@ -152,7 +152,7 @@ pnpm build    # パッケージをビルド
 pnpm smoke    # ビルド後、ローカルのモックサーバーでビルド済み CLI を実行
 ```
 
-npm への公開は `letsplayquiz` を先に、続いて `lpqz` と `letsplayquiz-mcp` の順で行います (どちらも `letsplayquiz` の同一バージョンに依存します)。
+npm への公開は `letsplayquiz` を先に、続いて `lpq` と `letsplayquiz-mcp` の順で行います (どちらも `letsplayquiz` の同一バージョンに依存します)。
 
 クイズのルールはすべてサーバーが持ちます。CLI でルールを重複させたり回避したりしないでください。変更は小さく、挙動が変わるときはテストも追加してください。
 
