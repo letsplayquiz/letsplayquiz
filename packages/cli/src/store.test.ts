@@ -40,6 +40,21 @@ describe('resolveConfigDir / resolveStoreFile', () => {
     const xdg = path.join(tmpHome, 'xdg')
     expect(resolveConfigDir(io({ XDG_CONFIG_HOME: xdg }))).toBe(path.join(xdg, 'letsplayquiz'))
   })
+
+  // XDG Base Directory 규약: 환경 변수 값이 절대 경로가 아니면 무시한다. 상대 경로를 그대로 쓰면
+  // 실행할 때마다 현재 폴더에 따라 기록 파일이 흩어지고, 공유 폴더에 owner 링크가 남을 수 있다.
+  it('XDG_CONFIG_HOME이 상대 경로이면 무시하고 ~/.config를 쓴다', () => {
+    for (const relative of ['xdg', './xdg', '../xdg', 'a/b', '.', '~/config']) {
+      expect(resolveConfigDir(io({ XDG_CONFIG_HOME: relative }))).toBe(path.join(tmpHome, '.config', 'letsplayquiz'))
+      expect(resolveStoreFile(io({ XDG_CONFIG_HOME: relative }))).toBe(path.join(tmpHome, '.config', 'letsplayquiz', 'tests.jsonl'))
+    }
+  })
+
+  it('XDG_CONFIG_HOME이 비었거나 공백뿐이어도 ~/.config를 쓴다', () => {
+    for (const blank of ['', '   ']) {
+      expect(resolveConfigDir(io({ XDG_CONFIG_HOME: blank }))).toBe(path.join(tmpHome, '.config', 'letsplayquiz'))
+    }
+  })
 })
 
 describe('saveRecord', () => {

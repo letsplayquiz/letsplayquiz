@@ -48,7 +48,9 @@ const isWindows = process.platform === 'win32'
 
 export function resolveConfigDir(io: StoreIo): string {
   const xdg = io.env.XDG_CONFIG_HOME
-  const base = xdg && xdg.trim() !== '' ? xdg : path.join(io.homedir(), '.config')
+  // XDG 규약: 절대 경로가 아닌 값은 무시한다(비었거나 공백뿐인 값 포함). 상대 경로를 그대로 쓰면
+  // 실행한 폴더마다 기록 파일(owner 링크가 든)이 흩어지고, 작업 폴더가 공유 폴더면 거기에 남는다.
+  const base = xdg && xdg.trim() !== '' && path.isAbsolute(xdg) ? xdg : path.join(io.homedir(), '.config')
   return path.join(base, 'letsplayquiz')
 }
 

@@ -56,7 +56,7 @@ export const HELP_TEXT = `letsplayquiz — AI 에이전트로 LetsPlayQuiz 퀴�
   --api <url>     서버 주소. https만 허용(로컬 개발은 http://localhost, http://127.0.0.1 예외).
                   기본값: ${DEFAULT_API}, 환경변수 LETSPLAYQUIZ_API로도 설정 가능
   --show-owner    list에서 ownerUrl(창작자 전용 대시보드 링크, 비밀)도 보여 줌
-  --no-save       publish 결과를 ~/.config/letsplayquiz/tests.jsonl(XDG_CONFIG_HOME이 있으면 그 아래)에 남기지 않음
+  --no-save       publish 결과를 ~/.config/letsplayquiz/tests.jsonl(절대 경로인 XDG_CONFIG_HOME이 있으면 그 아래)에 남기지 않음
   --help          도움말 출력
   --version       버전 출력
 `

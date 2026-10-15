@@ -58,7 +58,7 @@ claude mcp add letsplayquiz -- npx -y letsplayquiz-mcp
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `LETSPLAYQUIZ_API` | `https://letsplayquiz.net` | Server base URL. Must be `https` (plain `http` only for `localhost`, `127.0.0.1`, `[::1]`). An invalid value (including whitespace only, or `user:pass@`) does not stop the server: `get_guide`, `validate_quiz` and `publish_quiz` return an error explaining the problem, while `list_my_quizzes` keeps working. |
-| `XDG_CONFIG_HOME` | `~/.config` | The history file is `$XDG_CONFIG_HOME/letsplayquiz/tests.jsonl`, shared with the CLI. |
+| `XDG_CONFIG_HOME` | `~/.config` | The history file is `$XDG_CONFIG_HOME/letsplayquiz/tests.jsonl`, shared with the CLI. Only an absolute path is used; a relative value is ignored (XDG convention). |
 
 Example for a local development server (Claude Code):
 

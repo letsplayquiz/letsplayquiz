@@ -56,7 +56,7 @@ npx letsplayquiz list                   # 이 컴퓨터에서 발행한 퀴즈
 
 종료 코드: `0` 성공, `1` 검사 실패, `2` 사용법 오류, `3` 요청 제한, `4` 네트워크·서버 오류(발행 안 됨), `5` 발행 결과 불명(곧장 재시도하지 말 것). 자세한 내용은 [`packages/cli/README.md`](packages/cli/README.md)를 보세요.
 
-`publish`는 비밀 owner 링크를 포함한 결과를 `~/.config/letsplayquiz/tests.jsonl`(`XDG_CONFIG_HOME`이 있으면 그 아래)에 제한된 권한으로 남기고 화면에도 출력합니다. owner 링크는 다시 발급받을 수 없으니 비밀로 다루고, CI 로그 노출에 주의하세요.
+`publish`는 비밀 owner 링크를 포함한 결과를 `~/.config/letsplayquiz/tests.jsonl`(절대 경로인 `XDG_CONFIG_HOME`이 있으면 그 아래)에 제한된 권한으로 남기고 화면에도 출력합니다. owner 링크는 다시 발급받을 수 없으니 비밀로 다루고, CI 로그 노출에 주의하세요.
 
 ## MCP 서버
 

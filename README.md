@@ -56,7 +56,7 @@ npx letsplayquiz list                   # quizzes published from this computer
 
 Exit codes: `0` success, `1` validation failed, `2` usage error, `3` rate limited, `4` network or server error (nothing was published), `5` publish outcome unknown (do not blindly retry). Details are in [`packages/cli/README.md`](packages/cli/README.md) (Korean).
 
-`publish` appends the result, including the secret owner link, to `~/.config/letsplayquiz/tests.jsonl` (under `XDG_CONFIG_HOME` if set) with restrictive permissions, and prints it. The owner link cannot be reissued, so treat it as a secret and be careful with CI logs.
+`publish` appends the result, including the secret owner link, to `~/.config/letsplayquiz/tests.jsonl` (under `XDG_CONFIG_HOME` if set to an absolute path) with restrictive permissions, and prints it. The owner link cannot be reissued, so treat it as a secret and be careful with CI logs.
 
 ## MCP server
 
