@@ -766,6 +766,119 @@ describe('서버가 결과 불명을 스스로 알림(publish_unknown) / 알려�
   })
 })
 
+describe('사람용 출력이 버리던 정보: Retry-After(503)와 잘린 목록(truncated)', () => {
+  async function quizFile(): Promise<string> {
+    const file = path.join(tmpDir, 'quiz.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    return file
+  }
+
+  it('503 unavailable의 Retry-After 초를 사람용 출력에 적는다(validate·publish 모두, 종료 코드는 4 그대로)', async () => {
+    const file = await quizFile()
+    const body = { ok: false, error: { code: 'unavailable', message: '잠시 이용할 수 없어요' } }
+    for (const command of ['validate', 'publish']) {
+      vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(503, body, { 'retry-after': '30' })))
+      const io = makeIo()
+      expect(await run([command, file], io)).toBe(4)
+      expect(io.stderrText()).toContain('잠시 이용할 수 없어요')
+      expect(io.stderrText()).toContain('30초 후 다시 시도해 주세요')
+    }
+  })
+
+  it('Retry-After가 없는 오류(feature_unavailable 등)에는 다시 시도하라는 말을 붙이지 않는다', async () => {
+    const file = await quizFile()
+    const body = { ok: false, error: { code: 'feature_unavailable', feature: 'match', message: '이 필드를 빼면 발행할 수 있어요' } }
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(503, body)))
+    const io = makeIo()
+    expect(await run(['publish', file], io)).toBe(4)
+    expect(io.stderrText()).toContain('이 필드를 빼면 발행할 수 있어요')
+    expect(io.stderrText()).not.toContain('다시 시도')
+  })
+
+  it('429는 publish에서도 초를 적는다', async () => {
+    const file = await quizFile()
+    const body = { ok: false, error: { code: 'rate_limited', message: '너무 많아요' } }
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(429, body, { 'retry-after': '45' })))
+    const io = makeIo()
+    expect(await run(['publish', file], io)).toBe(3)
+    expect(io.stderrText()).toContain('45초 후 다시 시도해 주세요')
+  })
+
+  function manyIssues(n: number, code: string) {
+    return Array.from({ length: n }, (_, i) => ({ code, message: `문제 ${i}`, path: ['questions', i] }))
+  }
+
+  it('서버가 blocker 목록을 잘라 보냈으면 N개 중 일부만 보여 줬다고 알린다', async () => {
+    const file = await quizFile()
+    const body = {
+      ok: false,
+      error: { code: 'validation_failed', message: '250개를 고쳐야 해요' },
+      blockers: manyIssues(100, 'choice_count'),
+      warnings: [],
+      truncated: true,
+      totalBlockers: 250,
+      totalWarnings: 0,
+    }
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(400, body)))
+    const io = makeIo()
+    expect(await run(['publish', file], io)).toBe(1)
+    const lines = io.stdoutText().trimEnd().split('\n')
+    expect(lines.slice(0, 100).every((l) => l.includes('choice_count'))).toBe(true)
+    expect(lines.slice(100).join('\n')).toContain('blocker 250개 중 일부(100개)만 보여 줘요')
+  })
+
+  it('잘리지 않은 목록에는 안내를 붙이지 않는다', async () => {
+    const file = await quizFile()
+    const body = {
+      ok: false,
+      error: { code: 'validation_failed', message: '3개' },
+      blockers: manyIssues(3, 'choice_count'),
+      warnings: [],
+    }
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(200, body)))
+    const io = makeIo()
+    expect(await run(['validate', file], io)).toBe(1)
+    expect(io.stdoutText().trimEnd().split('\n')).toHaveLength(3)
+    expect(io.stdoutText()).not.toContain('일부')
+  })
+
+  it('통과했는데 경고가 잘려 왔으면 경고 목록 뒤에 안내를 붙인다', async () => {
+    const file = await quizFile()
+    const body = { ok: true, blockers: [], warnings: manyIssues(100, 'level_empty'), truncated: true, totalWarnings: 130, totalBlockers: 0 }
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(200, body)))
+    const io = makeIo()
+    expect(await run(['validate', file], io)).toBe(0)
+    expect(io.stdoutText()).toContain('통과했어요')
+    expect(io.stdoutText().trimEnd().split('\n').at(-1)).toContain('경고 130개 중 일부(100개)만 보여 줘요')
+  })
+
+  it('발행 성공 응답의 경고가 잘려 왔을 때도 안내를 붙인다', async () => {
+    const file = await quizFile()
+    const body = {
+      ok: true,
+      slug: 'ab12cd34',
+      url: 'https://letsplayquiz.net/t/ab12cd34',
+      ownerUrl: 'https://letsplayquiz.net/t/ab12cd34/owner/tok',
+      warnings: manyIssues(100, 'level_empty'),
+      truncated: true,
+      totalWarnings: 120,
+    }
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(201, body)))
+    const io = makeIo()
+    expect(await run(['publish', file, '--no-save'], io)).toBe(0)
+    expect(io.stdoutText()).toContain('경고 120개 중 일부(100개)만 보여 줘요')
+  })
+
+  it('--json은 서버 본문을 그대로 낸다(truncated·total 필드 포함)', async () => {
+    const file = await quizFile()
+    const body = { ok: false, error: { code: 'validation_failed', message: 'm' }, blockers: manyIssues(100, 'x'), warnings: [], truncated: true, totalBlockers: 250, totalWarnings: 0 }
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(400, body)))
+    const io = makeIo()
+    await run(['publish', file, '--json'], io)
+    expect(JSON.parse(io.stdoutText())).toMatchObject({ truncated: true, totalBlockers: 250 })
+  })
+})
+
 describe('경로가 빈 blocker(퀴즈 전체) — 검수 차단 moderation_blocked', () => {
   const body = {
     ok: false,

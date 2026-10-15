@@ -118,6 +118,19 @@ function printPublishUnknown(io: Io, args: ParsedArgs, rawText?: string): void {
   if (raw !== undefined) io.stderr(`원본 응답: ${raw}\n`)
 }
 
+/** 서버가 blocker·경고 목록을 잘라 보냈으면(`truncated: true`, `total…`) 몇 개 중 몇 개만 왔는지
+ * 알리는 한 줄. 이 줄이 없으면 100개째에서 잘린 목록이 전부인 줄 알고 "다 고쳤다"고 착각한다. */
+function truncationNote(
+  body: Record<string, unknown>,
+  label: 'blocker' | '경고',
+  shown: number,
+  total: unknown,
+): string | undefined {
+  if (body.truncated !== true || typeof total !== 'number' || !(total > shown)) return undefined
+  const rest = label === 'blocker' ? ' 고친 뒤 다시 검사하면 나머지가 나와요' : ''
+  return `※ ${label} ${total}개 중 일부(${shown}개)만 보여 줘요.${rest}\n`
+}
+
 /** validate(그리고 publish 실패 경로)의 사람용 출력. blocker가 없어도 warning은
  * 보여 준다 — AI가 발행 전에 고칠 여지를 놓치지 않게 한다. */
 function printOutcomeHuman(outcome: Outcome, io: Io, lang?: string): void {
@@ -130,10 +143,17 @@ function printOutcomeHuman(outcome: Outcome, io: Io, lang?: string): void {
     const blockers = Array.isArray(body.blockers) ? body.blockers : []
     if (blockers.length > 0) {
       io.stdout(`${formatIssues(blockers, lang)}\n`)
+      const note = truncationNote(body, 'blocker', blockers.length, body.totalBlockers)
+      if (note) io.stdout(note)
       return
     }
     const message = isRecord(body.error) ? String(body.error.message ?? '') : ''
     io.stderr(`${message || '오류가 발생했어요'}\n`)
+    // 503 unavailable처럼 서버가 Retry-After를 준 오류는 몇 초 뒤에 다시 하라는 것까지 알린다.
+    // (Retry-After가 없는 오류 — 예: feature_unavailable — 는 기다려도 풀리지 않으니 붙이지 않는다.)
+    if (outcome.exitCode === 4 && outcome.retryAfterSeconds !== undefined) {
+      io.stderr(`${retryMessage(outcome.retryAfterSeconds)}\n`)
+    }
     return
   }
   if (isRecord(body) && body.ok === true) {
@@ -142,6 +162,8 @@ function printOutcomeHuman(outcome: Outcome, io: Io, lang?: string): void {
     if (warnings.length > 0) {
       io.stdout('경고:\n')
       io.stdout(`${formatIssues(warnings, lang)}\n`)
+      const note = truncationNote(body, '경고', warnings.length, body.totalWarnings)
+      if (note) io.stdout(note)
     }
     return
   }
@@ -266,6 +288,8 @@ async function runPublish(args: ParsedArgs, io: Io, ua: string): Promise<number>
       if (warnings.length > 0) {
         io.stdout('경고:\n')
         io.stdout(`${formatIssues(warnings, args.lang)}\n`)
+        const note = truncationNote(body, '경고', warnings.length, body.totalWarnings)
+        if (note) io.stdout(note)
       }
     }
 
