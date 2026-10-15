@@ -20,6 +20,7 @@ const npmCommand = isWindows ? 'npm.cmd' : 'npm'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const cliDir = path.join(here, '..')
 const lpqDir = path.join(here, '..', '..', 'lpq')
+const mcpDir = path.join(here, '..', '..', 'mcp')
 
 function readJson(file: string): Record<string, unknown> {
   return JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
@@ -99,5 +100,44 @@ describe('packages/lpq package.json', () => {
     const out = execFileSync(npmCommand, ['pack', '--dry-run', '--json'], { cwd: lpqDir, encoding: 'utf8', shell: isWindows })
     const [result] = JSON.parse(out) as { files: { path: string }[] }[]
     expect(result.files.some((f) => f.path === 'bin.js')).toBe(true)
+  })
+})
+
+// lpq와 letsplayquiz-mcp는 둘 다 letsplayquiz에 **정확한 버전**으로 의존한다(발행 순서: letsplayquiz 먼저).
+// 본 패키지 버전을 올리고 이 둘의 의존 버전을 깜빡하면, npm에 올린 뒤 `npx lpq`·MCP 서버가
+// 아직 없거나 옛 버전의 letsplayquiz를 받아 실패한다 — 올리기 전에 여기서 잡는다.
+describe('letsplayquiz에 의존하는 패키지들', () => {
+  const cliPkg = readJson(path.join(cliDir, 'package.json'))
+  const dependents = [
+    { name: 'lpq', dir: lpqDir },
+    { name: 'letsplayquiz-mcp', dir: mcpDir },
+  ]
+
+  for (const { name, dir } of dependents) {
+    describe(name, () => {
+      const pkg = readJson(path.join(dir, 'package.json'))
+      const deps = (pkg.dependencies ?? {}) as Record<string, string>
+
+      it('이름이 맞다', () => {
+        expect(pkg.name).toBe(name)
+      })
+
+      it('letsplayquiz 의존 버전이 본 패키지(packages/cli) 버전과 같다', () => {
+        expect(deps.letsplayquiz).toBe(cliPkg.version)
+      })
+
+      it('의존 버전이 범위(^, ~, *, 태그)가 아니라 정확한 semver다', () => {
+        expect(deps.letsplayquiz).toMatch(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/)
+      })
+
+      it('workspace: 프로토콜을 쓰지 않는다(npm에 올려도 그대로 통하게)', () => {
+        expect(deps.letsplayquiz).not.toMatch(/^workspace:/)
+      })
+    })
+  }
+
+  it('letsplayquiz-mcp의 bin이 letsplayquiz-mcp 하나다', () => {
+    const mcpPkg = readJson(path.join(mcpDir, 'package.json'))
+    expect(mcpPkg.bin).toEqual({ 'letsplayquiz-mcp': 'dist/bin.js' })
   })
 })
