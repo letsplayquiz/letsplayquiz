@@ -275,7 +275,7 @@ export function decideOutcome(response: HttpResponse, mode: ResponseMode = 'cont
         ok: false,
         error: {
           code: 'redirected',
-          message: `서버가 다른 주소로 보냈어요: ${location} — --api로 그 서버 주소를 직접 지정해 주세요`,
+          message: `서버가 요청을 다른 주소로 돌렸어요: ${location} — --api로 그 서버 주소를 직접 지정해 주세요`,
           status: response.status,
           location,
         },

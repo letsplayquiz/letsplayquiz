@@ -943,7 +943,7 @@ describe('서버가 다른 주소로 보낼 때(리다이렉트)', () => {
     expect(code).toBe(4)
     expect(spy).toHaveBeenCalledTimes(1)
     expect((spy.mock.calls[0] as unknown as [string, RequestInit])[1].redirect).toBe('manual')
-    expect(io.stderrText()).toContain(`서버가 다른 주소로 보냈어요: ${location}`)
+    expect(io.stderrText()).toContain(`서버가 요청을 다른 주소로 돌렸어요: ${location}`)
     expect(io.stderrText()).toContain('--api')
     expect(io.stderrText()).not.toContain('발행됐을 수 있어요')
     expect(await storeFileExists()).toBe(false)

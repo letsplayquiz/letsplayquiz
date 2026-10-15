@@ -139,7 +139,7 @@ async function main() {
       } catch (e) {
         redirectFailed = true
         if (e.code !== 4) throw new Error(`리다이렉트인데 종료 코드가 4가 아니에요: ${e.code}`)
-        if (!String(e.stderr).includes('서버가 다른 주소로 보냈어요')) {
+        if (!String(e.stderr).includes('서버가 요청을 다른 주소로 돌렸어요')) {
           throw new Error(`리다이렉트 안내 문구가 없어요: ${JSON.stringify(e.stderr)}`)
         }
       }

@@ -117,7 +117,7 @@ describe('리다이렉트는 따라가지 않는다', () => {
       expect(error.code).toBe('redirected')
       expect(error.location).toBe(location)
       expect(error.status).toBe(status)
-      expect(String(error.message)).toContain(`서버가 다른 주소로 보냈어요: ${location}`)
+      expect(String(error.message)).toContain(`서버가 요청을 다른 주소로 돌렸어요: ${location}`)
       expect(String(error.message)).toContain('--api')
     }
   })
