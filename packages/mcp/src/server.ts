@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { KINDS, LANGS } from 'letsplayquiz/lib'
+import { KIND_PATTERN, LANGS } from 'letsplayquiz/lib'
 import { getGuide, validateQuiz, publishQuiz, listMyQuizzes, type ToolContext, type CallOptions } from './tools.js'
 
 const lang = z.enum(LANGS).optional().describe('Language of the quiz and of server messages (ko, ja or en)')
@@ -20,9 +20,16 @@ export function createServer(
     {
       title: 'Get quiz authoring guide',
       description:
-        'Fetch the LetsPlayQuiz authoring guide as JSON: the quiz schema and rules for each kind (score, type, balance, worldcup, level). Call this before writing a quiz.',
+        'Fetch the LetsPlayQuiz authoring guide as JSON: the quiz schema and rules for each kind (for example score, type, balance, worldcup, level). Call this before writing a quiz.',
       inputSchema: {
-        kind: z.enum(KINDS).optional().describe('Quiz kind to get the guide for; omit for the overview'),
+        // 서버에 새 종류가 생겨도 옛 버전이 쓸 수 있게 목록으로 막지 않는다 — 모양만 확인하고 서버가 판단한다.
+        kind: z
+          .string()
+          .regex(KIND_PATTERN)
+          .optional()
+          .describe(
+            'Quiz kind to get the guide for, e.g. score, type, balance, worldcup or level (lowercase letters, digits and _ , 1-20 characters; the server decides which kinds exist). Omit for the overview.',
+          ),
         lang,
       },
       annotations: { readOnlyHint: true, openWorldHint: true },

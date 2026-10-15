@@ -19,5 +19,5 @@ export {
 } from './api.js'
 export { saveRecord, loadRecords, resolveStoreFile, type TestRecord, type StoreIo, type LoadResult } from './store.js'
 export { formatIssues } from './format.js'
-export { DEFAULT_API, KINDS, LANGS, validateApi, type Kind, type Lang } from './args.js'
+export { DEFAULT_API, KINDS, KIND_PATTERN, LANGS, validateApi, type Kind, type Lang } from './args.js'
 export { VERSION } from './cli.js'

@@ -68,6 +68,42 @@ describe('createServer', () => {
     }
   })
 
+  it('get_guide는 모르는 종류(모양은 맞음)를 서버로 넘기고, 모양이 틀린 종류는 거절한다', async () => {
+    const fetchSpy = vi.fn(async () =>
+      new Response(JSON.stringify({ ok: false, error: { code: 'invalid_value', message: 'unknown kind: future_kind' } }), {
+        status: 400,
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+    try {
+      const server = createServer(
+        { api: 'https://example.test', ua: 'ua', store: { env: {} as NodeJS.ProcessEnv, homedir: () => '/nonexistent-home' } },
+        '0.0.0',
+      )
+      const [a, b] = InMemoryTransport.createLinkedPair()
+      const client = new Client({ name: 't', version: '0' })
+      await Promise.all([server.connect(a), client.connect(b)])
+
+      const { tools } = await client.listTools()
+      const kindSchema = (tools.find((t) => t.name === 'get_guide')?.inputSchema.properties as Record<string, { enum?: unknown }>).kind
+      expect(kindSchema.enum).toBeUndefined()
+
+      const unknownKind = await client.callTool({ name: 'get_guide', arguments: { kind: 'future_kind' } })
+      expect(fetchSpy).toHaveBeenCalledTimes(1)
+      expect(new URL(String((fetchSpy.mock.calls[0] as unknown as [string])[0])).searchParams.get('kind')).toBe('future_kind')
+      expect(unknownKind.isError).toBe(true)
+      expect(JSON.stringify(unknownKind.content)).toContain('unknown kind: future_kind')
+
+      const badShape = await client.callTool({ name: 'get_guide', arguments: { kind: 'Bad Kind!' } })
+      expect(badShape.isError).toBe(true)
+      expect(fetchSpy).toHaveBeenCalledTimes(1)
+      await client.close()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('list_my_quizzes는 includeOwnerUrls 입력을 가지며 기본 false다', async () => {
     const server = createServer(
       { api: 'https://example.test', ua: 'ua', store: { env: {} as NodeJS.ProcessEnv, homedir: () => '/nonexistent-home' } },

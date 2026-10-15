@@ -4,8 +4,15 @@
 // 2를 낸다.
 import { parseArgs as nodeParseArgs } from 'node:util'
 
+/** 지금 서버가 아는 종류들(도움말·문서의 예시). CLI는 이 목록으로 입력을 막지 않는다 —
+ * 서버에 새 종류가 생겨도 옛 버전 CLI가 쓸 수 있게, 모르는 종류는 모양만 확인하고
+ * 서버로 넘겨 서버의 400을 그대로 보여 준다("서버가 모든 규칙을 갖는다"). */
 export const KINDS = ['score', 'type', 'balance', 'worldcup', 'level'] as const
 export type Kind = (typeof KINDS)[number]
+
+/** 종류 이름의 모양: 소문자 영문·숫자·_ 1~20자(서버의 키 규칙과 같다). 쿼리에 그대로 실려
+ * 나가므로 이 모양이 아니면 로컬에서 거절한다. */
+export const KIND_PATTERN = /^[a-z0-9_]{1,20}$/
 
 export const LANGS = ['ko', 'ja', 'en'] as const
 export type Lang = (typeof LANGS)[number]
@@ -19,7 +26,7 @@ export const COMMANDS: Command[] = ['guide', 'validate', 'publish', 'list']
 export interface ParsedArgs {
   command: Command
   file?: string
-  kind?: Kind
+  kind?: string
   json: boolean
   lang?: Lang
   api: string
@@ -43,6 +50,7 @@ export const HELP_TEXT = `letsplayquiz — AI 에이전트로 LetsPlayQuiz 퀴�
   letsplayquiz list
 
 공통 옵션:
+  --kind <종류>   guide에서 볼 종류. 예: score|type|balance|worldcup|level (그 밖의 이름은 서버로 그대로 보내 서버가 판단)
   --json          서버 응답(또는 list의 기록)을 그대로 출력. list는 ownerUrl을 뺌(--show-owner로 넣음)
   --lang ko|ja|en 서버 메시지 언어(쿼리 lang)
   --api <url>     서버 주소. https만 허용(로컬 개발은 http://localhost, http://127.0.0.1 예외).
@@ -125,12 +133,17 @@ export function parseArgs(argv: string[], env: NodeJS.ProcessEnv): ParseOutcome 
     }
   }
 
-  let kind: Kind | undefined
+  let kind: string | undefined
   if (parsed.values.kind !== undefined) {
-    if (!KINDS.includes(parsed.values.kind as Kind)) {
-      return { kind: 'error', message: `모르는 --kind 값이에요: ${parsed.values.kind}`, exitCode: 2 }
+    const rawKind = parsed.values.kind as string
+    if (!KIND_PATTERN.test(rawKind)) {
+      return {
+        kind: 'error',
+        message: `--kind 값 모양이 올바르지 않아요(소문자 영문·숫자·_ 1~20자): ${rawKind}`,
+        exitCode: 2,
+      }
     }
-    kind = parsed.values.kind as Kind
+    kind = rawKind
   }
 
   let lang: Lang | undefined

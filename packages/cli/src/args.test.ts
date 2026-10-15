@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseArgs, DEFAULT_API, HELP_TEXT } from './args.js'
+import { parseArgs, DEFAULT_API, HELP_TEXT, KINDS } from './args.js'
 
 const env = (overrides: Record<string, string | undefined> = {}): NodeJS.ProcessEnv =>
   ({ ...overrides }) as NodeJS.ProcessEnv
@@ -31,9 +31,28 @@ describe('parseArgs', () => {
     expect(outcome).toEqual({ kind: 'error', message: expect.stringContaining('dance'), exitCode: 2 })
   })
 
-  it('--kind가 목록에 없으면 오류(2)를 낸다', () => {
-    const outcome = parseArgs(['guide', '--kind', 'nope'], env())
-    expect(outcome).toEqual({ kind: 'error', message: expect.stringContaining('nope'), exitCode: 2 })
+  // 서버에 새 종류가 생겨도 옛 버전 CLI가 쓸 수 있어야 한다 — 로컬은 모양만 보고, 아는 종류인지는 서버가 정한다.
+  it('--kind가 목록에 없는 종류여도 모양이 맞으면 서버로 넘긴다', () => {
+    for (const kind of ['nope', 'mbti_2', 'quiz2', 'a', 'a'.repeat(20)]) {
+      expect(parseArgs(['guide', '--kind', kind], env())).toMatchObject({ kind: 'run', args: { command: 'guide', kind } })
+    }
+  })
+
+  it('--kind 모양이 틀리면(대문자·공백·기호·빈 값·21자 이상) 오류(2)를 낸다', () => {
+    for (const kind of ['Nope', 'has space', 'kor-ean', 'q?x=1', '', 'a'.repeat(21), '한글', '../x']) {
+      const outcome = parseArgs(['guide', '--kind', kind], env())
+      expect(outcome).toEqual({ kind: 'error', message: expect.stringContaining('--kind'), exitCode: 2 })
+    }
+  })
+
+  it('알려진 종류 다섯 개는 그대로 통과한다', () => {
+    for (const kind of KINDS) {
+      expect(parseArgs(['guide', '--kind', kind], env())).toMatchObject({ kind: 'run', args: { kind } })
+    }
+  })
+
+  it('도움말의 종류 목록은 예시임을 밝힌다', () => {
+    expect(HELP_TEXT).toMatch(/--kind[^\n]*(예|서버)/)
   })
 
   it('--kind level을 받아들인다', () => {

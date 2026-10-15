@@ -238,6 +238,28 @@ describe('publish 명령', () => {
   })
 })
 
+describe('guide --kind: 서버가 아는 종류인지는 서버가 정한다', () => {
+  it('모르는 종류(모양은 맞음)도 서버로 보내고 서버의 400 안내를 그대로 보여 준다', async () => {
+    const body = { ok: false, lang: 'ko', error: { code: 'invalid_value', message: '모르는 종류예요: future_kind' } }
+    const spy = vi.fn(async () => jsonResponse(400, body))
+    vi.stubGlobal('fetch', spy)
+    const io = makeIo()
+    const code = await run(['guide', '--kind', 'future_kind'], io)
+    expect(code).toBe(4)
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(new URL(String((spy.mock.calls[0] as unknown as [string])[0])).searchParams.get('kind')).toBe('future_kind')
+    expect(io.stderrText()).toContain('모르는 종류예요: future_kind')
+  })
+
+  it('모양이 틀린 종류는 서버를 부르지 않고 2', async () => {
+    const spy = vi.fn()
+    vi.stubGlobal('fetch', spy)
+    const io = makeIo()
+    expect(await run(['guide', '--kind', 'Bad Kind'], io)).toBe(2)
+    expect(spy).not.toHaveBeenCalled()
+  })
+})
+
 describe('guide 명령', () => {
   it('서버 응답을 그대로 출력한다', async () => {
     vi.stubGlobal(

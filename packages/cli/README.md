@@ -36,6 +36,8 @@ This package registers only the `letsplayquiz` command. The short `lpq` command 
 
 Pass `-` instead of a file to read JSON from standard input.
 
+The kinds listed for `--kind` are the ones the server knows today. The CLI only checks that the name looks like a kind (lowercase letters, digits and `_`, 1 to 20 characters) and sends it as-is, so a kind added to the server later works with an older CLI, and an unknown one shows the server's own error.
+
 ## Common fields (all kinds)
 
 Kind-specific fields (`kind`, `questions`, `resultTypes`, …) are described with exact rules and examples by `guide --kind <kind>`. These optional top-level fields apply to every kind:
