@@ -54,19 +54,66 @@ npx letsplayquiz list                   # quizzes published from this computer
 | `--no-save` | Do not record the `publish` result locally |
 | `--help`, `--version` | Help / version |
 
-Exit codes: `0` success, `1` validation failed, `2` usage error, `3` rate limited, `4` network or server error (nothing was published), `5` publish outcome unknown (do not blindly retry). Details are in [`packages/cli/README.md`](packages/cli/README.md) (Korean).
+Exit codes: `0` success, `1` validation failed, `2` usage error, `3` rate limited, `4` network or server error (nothing was published), `5` publish outcome unknown (do not blindly retry). Details are in [`packages/cli/README.md`](packages/cli/README.md).
 
 `publish` appends the result, including the secret owner link, to `~/.config/letsplayquiz/tests.jsonl` (under `XDG_CONFIG_HOME` if set to an absolute path) with restrictive permissions, and prints it. The owner link cannot be reissued, so treat it as a secret and be careful with CI logs.
 
 ## MCP server
 
-`letsplayquiz-mcp` is a local [MCP](https://modelcontextprotocol.io) (stdio) server for agents that speak MCP instead of shelling out. Tools: `get_guide`, `validate_quiz`, `publish_quiz`, `list_my_quizzes`. It reuses the CLI logic and shares its history file.
+`letsplayquiz-mcp` is a local [MCP](https://modelcontextprotocol.io) (stdio) server for agents that speak MCP instead of shelling out. It reuses the CLI logic and shares its history file. Requires Node.js 20 or newer; MCP clients start it with `npx`, so there is nothing to install.
+
+**Claude Code**
 
 ```sh
 claude mcp add letsplayquiz -- npx -y letsplayquiz-mcp
 ```
 
-Configs for Claude Desktop and Cursor, and the `LETSPLAYQUIZ_API` override, are in [`packages/mcp/README.md`](packages/mcp/README.md). `publish_quiz` publishes a public quiz, so the agent should confirm with you first.
+**Claude Desktop** (`claude_desktop_config.json`)
+
+```json
+{
+  "mcpServers": {
+    "letsplayquiz": {
+      "command": "npx",
+      "args": ["-y", "letsplayquiz-mcp"]
+    }
+  }
+}
+```
+
+**Cursor** (`.cursor/mcp.json`, or `~/.cursor/mcp.json` for all projects)
+
+```json
+{
+  "mcpServers": {
+    "letsplayquiz": {
+      "command": "npx",
+      "args": ["-y", "letsplayquiz-mcp"]
+    }
+  }
+}
+```
+
+Tools:
+
+| Tool | What it does |
+|---|---|
+| `get_guide` | Returns the authoring guide as JSON (read-only) |
+| `validate_quiz` | Checks a quiz without saving it. A failed validation comes back as a normal result, not an error (read-only) |
+| `publish_quiz` | Publishes a **public** quiz and returns `url` and `ownerUrl` |
+| `list_my_quizzes` | Quizzes published from this computer, newest first (no server call). `ownerUrl` is hidden by default and shown only with `includeOwnerUrls: true`; use that only when the user explicitly asks for their dashboard links |
+
+`publish_quiz` publishes a public quiz, so the agent should confirm with you first. `ownerUrl` is the only proof that you own a quiz and it cannot be reissued, so keep it private.
+
+**If publishing fails with a timeout or a transport error and there is no result, treat it as "the quiz MAY have been published": do not retry, and ask the user.** Publishing again automatically when the outcome is unknown can create a duplicate.
+
+The server address can be changed with the `LETSPLAYQUIZ_API` environment variable (default `https://letsplayquiz.net`; `https` only, with `http` allowed just for `localhost`, `127.0.0.1` and `[::1]`). Example for a local development server (Claude Code):
+
+```sh
+claude mcp add letsplayquiz -e LETSPLAYQUIZ_API=http://localhost:3100 -- npx -y letsplayquiz-mcp
+```
+
+Details are in [`packages/mcp/README.md`](packages/mcp/README.md).
 
 ## Claude skill
 

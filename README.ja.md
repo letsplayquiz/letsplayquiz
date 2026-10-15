@@ -54,7 +54,7 @@ npx letsplayquiz list                   # このコンピューターで公開�
 | `--no-save` | `publish` の結果をローカルに記録しない |
 | `--help`, `--version` | ヘルプ / バージョン |
 
-終了コード: `0` 成功、`1` 検査失敗、`2` 使い方の誤り、`3` リクエスト制限、`4` ネットワーク・サーバーエラー(公開されていない)、`5` 公開結果が不明(すぐ再試行しない)。詳細は [`packages/cli/README.md`](packages/cli/README.md) (韓国語) を参照してください。
+終了コード: `0` 成功、`1` 検査失敗、`2` 使い方の誤り、`3` リクエスト制限、`4` ネットワーク・サーバーエラー(公開されていない)、`5` 公開結果が不明(すぐ再試行しない)。詳細は [`packages/cli/README.md`](packages/cli/README.md) (英語) を参照してください。
 
 `publish` は秘密のオーナーリンクを含む結果を `~/.config/letsplayquiz/tests.jsonl` (絶対パスの `XDG_CONFIG_HOME` があればその下) に制限付きの権限で記録し、画面にも出力します。オーナーリンクは再発行できないので秘密として扱い、CI のログへの露出に注意してください。
 
@@ -150,7 +150,7 @@ Issue とプルリクエストを歓迎します。開発には pnpm を使い�
 pnpm install
 pnpm test     # vitest
 pnpm build    # パッケージをビルド
-pnpm smoke    # ビルド後、ローカルのモックサーバーでビルド済み CLI を実行
+pnpm smoke    # ビルド後、ローカルのモックサーバーでビルド済みの CLI と MCP サーバーを実行
 ```
 
 npm への公開は `letsplayquiz` を先に、続いて `lpq` と `letsplayquiz-mcp` の順で行います (どちらも `letsplayquiz` の同一バージョンに依存します)。

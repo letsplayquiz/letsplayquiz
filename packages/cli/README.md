@@ -46,6 +46,7 @@ Kind-specific fields (`kind`, `questions`, `resultTypes`, …) are described wit
 |---|---|
 | `locale` | `ko`\|`ja`\|`en`. Defaults to `ko`. The language players see |
 | `theme` | `classic`\|`mono`\|`candy`\|`ocean`\|`lemon`\|`mint`\|`grape`. Defaults to `classic`. Look of the play and result pages |
+| `cover` | A cover key (the character shown as the quiz's face on the home list and the start screen), or `null`. The allowed keys are in the `covers` list of `guide --json` (and the "Available covers" table of `guide`). Omit it for the kind's default cover. An unknown key is rejected by the server (`invalid_value`). If the cover can't be saved, the quiz is still published with the default cover and `warnings` include `cover_save_failed` |
 | `requestListing` | `boolean`, default `false`. If `true`, the quiz may appear on the public home page once an operator approves it or enough people have played. Leave it off for private content such as friends' names |
 
 ## Options

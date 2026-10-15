@@ -54,7 +54,7 @@ npx letsplayquiz list                   # 이 컴퓨터에서 발행한 퀴즈
 | `--no-save` | `publish` 결과를 로컬 기록에 남기지 않음 |
 | `--help`, `--version` | 도움말 / 버전 |
 
-종료 코드: `0` 성공, `1` 검사 실패, `2` 사용법 오류, `3` 요청 제한, `4` 네트워크·서버 오류(발행 안 됨), `5` 발행 결과 불명(곧장 재시도하지 말 것). 자세한 내용은 [`packages/cli/README.md`](packages/cli/README.md)를 보세요.
+종료 코드: `0` 성공, `1` 검사 실패, `2` 사용법 오류, `3` 요청 제한, `4` 네트워크·서버 오류(발행 안 됨), `5` 발행 결과 불명(곧장 재시도하지 말 것). 자세한 내용은 [`packages/cli/README.md`](packages/cli/README.md)(영어)를 보세요.
 
 `publish`는 비밀 owner 링크를 포함한 결과를 `~/.config/letsplayquiz/tests.jsonl`(절대 경로인 `XDG_CONFIG_HOME`이 있으면 그 아래)에 제한된 권한으로 남기고 화면에도 출력합니다. owner 링크는 다시 발급받을 수 없으니 비밀로 다루고, CI 로그 노출에 주의하세요.
 
@@ -150,7 +150,7 @@ CLI는 공개 HTTP API 위의 얇은 클라이언트입니다. 직접 호출하�
 pnpm install
 pnpm test     # vitest
 pnpm build    # 패키지 빌드
-pnpm smoke    # 빌드 후 로컬 모의 서버로 빌드된 CLI 실행
+pnpm smoke    # 빌드 후 로컬 모의 서버로 빌드된 CLI와 MCP 서버 실행
 ```
 
 npm 배포는 `letsplayquiz`를 먼저, 그다음 `lpq`와 `letsplayquiz-mcp` 순서로 합니다(둘 다 `letsplayquiz`의 정확한 버전에 의존).

@@ -29,7 +29,7 @@ Read-only; no body.
 | `lang` | `ko`, `ja`, `en` | `ko` |
 
 - `format=markdown` returns `text/markdown; charset=utf-8`.
-- `format=json` returns an object with `lang`, `version` (currently `1`), `workflow`, `exitCodes`, `fields`, `kinds` and `blockers`. Each entry of `kinds` has `kind`, `label`, `hint`, `rules` (choice counts, result type counts, question counts, weight model) and a full `example` quiz that passes validation. Examples are written in the requested `lang`.
+- `format=json` returns an object with `lang`, `version` (currently `1`), `workflow`, `exitCodes`, `fields`, `covers`, `kinds` and `blockers`. `covers` lists every value the `cover` field accepts (`key`, `label`, `group`, `groupLabel`). Each entry of `kinds` has `kind`, `label`, `hint`, `rules` (choice counts, result type counts, question counts, weight model) and a full `example` quiz that passes validation. Examples are written in the requested `lang`.
 - Responses carry `Cache-Control: public, max-age=300`.
 - An unknown `kind` or `format` returns `400` with error code `invalid_value`.
 
@@ -89,6 +89,7 @@ All the quiz-taking kinds share the same top-level shape. Strings are trimmed be
 | `locale` | `"ko" \| "ja" \| "en"` | no | language players see; default `ko` |
 | `theme` | `"classic" \| "mono" \| "candy" \| "ocean" \| "lemon" \| "mint" \| "grape"` | no | default `classic` |
 | `requestListing` | boolean | no | default `false`; ask to be considered for the home listing. Avoid for quizzes with private content such as friends' names |
+| `cover` | string or `null` | no | a cover key from the `covers` list of `GET /api/v1/guide?format=json`; it becomes the quiz's face on the home list card and the start screen. Omit it or send `null` for the default cover of the kind. A key that is not in the list is rejected with `invalid_value`. If the cover cannot be saved the quiz is still published with the default cover and the response's `warnings` include `cover_save_failed` |
 | `questions` | array | yes | up to 20 entries; must be `[]` for `worldcup` |
 | `resultTypes` | array | yes | see per-kind rules; up to 16 entries (`worldcup`: exactly 8 or 16) |
 | `tieRule` | `"order" \| "custom"` | yes | how ties between result types are resolved (see below) |
@@ -173,7 +174,9 @@ Issue codes:
 - Generic field checks: `required`, `invalid_type`, `too_short`, `too_long`, `invalid_value`, `unrecognized_keys`, `invalid_input`, `out_of_range`.
 - Kind and structure rules: `reserved_type_key`, `bracket_has_questions`, `bracket_has_ties`, `candidate_count`, `no_questions`, `too_many_types`, `too_few_types`, `type_description_empty`, `choice_count`, `duplicate_type_key`.
 - Content rules: `title_empty`, `candidate_title_empty`, `candidate_title_too_long`, `candidate_title_duplicate`, `type_title_empty`, `type_title_too_long`, `tie_unknown_type`, `question_body_empty`, `choice_label_empty`, `unknown_weight_key`, `choice_no_weight`, `no_correct_answer`, `multiple_correct_answers`, `unreachable_type`, `reachability_unknown`, `tie_unresolved`.
-- Axis form, level and matching: `axes_mixed`, `axes_kind`, `level_has_ties`, `min_score_not_allowed`, `level_first_not_zero`, `level_not_increasing`, `level_unreachable`, `level_empty` (warning), `match_unknown_type`, `match_same`, `match_not_supported`, and `axis_*` codes for axis-form mistakes.
+- Axis form, level and matching: `axes_mixed`, `axes_kind`, `duplicate_pole_key`, `level_has_ties`, `min_score_not_allowed`, `level_first_not_zero`, `level_not_increasing`, `level_unreachable`, `level_empty` (warning), `match_unknown_type`, `match_same`, `match_not_supported`, and `axis_*` codes for axis-form mistakes.
+
+- Cover: `cover_save_failed` is a **warning** that appears only in a successful publish response: the quiz is published but its cover could not be saved, so it shows the default cover. It is never a blocker, so it is not in the guide's blocker list.
 
 `GET /api/v1/guide?format=json` lists each blocker code with a hint on how to fix it.
 

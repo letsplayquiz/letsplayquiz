@@ -1,6 +1,6 @@
 # letsplayquiz-mcp
 
-A local [MCP](https://modelcontextprotocol.io) (stdio) server for [LetsPlayQuiz](https://letsplayquiz.net). It lets AI agents read the authoring guide, validate a quiz, publish it and list what you published. It uses the same logic as the [`letsplayquiz`](../cli) CLI and writes to the same local history file.
+A local [MCP](https://modelcontextprotocol.io) (stdio) server for [LetsPlayQuiz](https://letsplayquiz.net). It lets AI agents read the authoring guide, validate a quiz, publish it and list what you published. It uses the same logic as the [`letsplayquiz`](https://github.com/letsplayquiz/letsplayquiz/tree/main/packages/cli) CLI and writes to the same local history file.
 
 ## Install
 
