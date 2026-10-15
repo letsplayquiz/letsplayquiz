@@ -239,6 +239,13 @@ describe('derivePublishExitCode', () => {
     expect(derivePublishExitCode(outcome, response).exitCode).toBe(4)
   })
 
+  it('503 feature_unavailable(0011 미적용 — 서버가 입력을 거절) → 4 (모르는 5xx 코드가 아니다)', () => {
+    const body = { ok: false, error: { code: 'feature_unavailable', feature: 'match', message: '이 필드를 빼면 발행할 수 있어요' } }
+    const response = makeHttpResponse(503, JSON.stringify(body))
+    const outcome = decideOutcome(response, 'contract')
+    expect(derivePublishExitCode(outcome, response)).toEqual({ exitCode: 4 })
+  })
+
   it('JSON 502 publish_unknown(서버가 스스로 결과 불명을 알림) → 5', () => {
     const body = { ok: false, error: { code: 'publish_unknown', message: '서버도 몰라요' } }
     const response = makeHttpResponse(502, JSON.stringify(body))
@@ -253,6 +260,44 @@ describe('derivePublishExitCode', () => {
     const outcome = decideOutcome(response, 'contract')
     const derived = derivePublishExitCode(outcome, response)
     expect(derived.exitCode).toBe(5)
+  })
+
+  describe('5xx의 error.saved === false (서버가 저장하지 않았음이 확실하다고 알림)', () => {
+    function derive(status: number, error: Record<string, unknown>) {
+      const response = makeHttpResponse(status, JSON.stringify({ ok: false, error }))
+      return derivePublishExitCode(decideOutcome(response, 'contract'), response)
+    }
+
+    it('모르는 코드여도 4다', () => {
+      expect(derive(500, { code: 'some_brand_new_code', message: 'm', saved: false })).toEqual({ exitCode: 4 })
+      expect(derive(503, { code: 'cover_store_down', message: 'm', saved: false })).toEqual({ exitCode: 4 })
+    })
+
+    it('publish_unknown처럼 결과 불명을 뜻하는 코드여도 saved:false가 우선한다', () => {
+      expect(derive(502, { code: 'publish_unknown', message: 'm', saved: false })).toEqual({ exitCode: 4 })
+    })
+
+    it('saved가 없거나 불리언 false가 아니면 지금 규칙 그대로다(허용 목록 밖은 5)', () => {
+      for (const saved of [undefined, true, 'false', 0, null, 'no']) {
+        const error: Record<string, unknown> = { code: 'some_brand_new_code', message: 'm' }
+        if (saved !== undefined) error.saved = saved
+        expect(derive(500, error).exitCode).toBe(5)
+      }
+    })
+
+    it('saved:true는 허용 목록 안의 코드여도 목록 규칙을 따른다(여기서는 4)', () => {
+      expect(derive(500, { code: 'internal', message: 'm', saved: true }).exitCode).toBe(4)
+    })
+
+    it('다른 위치(최상위)의 saved:false는 보지 않는다', () => {
+      const response = makeHttpResponse(500, JSON.stringify({ ok: false, saved: false, error: { code: 'some_brand_new_code', message: 'm' } }))
+      expect(derivePublishExitCode(decideOutcome(response, 'contract'), response).exitCode).toBe(5)
+    })
+
+    it('bad_response(계약과 다른 5xx)는 saved를 읽을 수 없으니 5 그대로다', () => {
+      const response = makeHttpResponse(502, '<html>bad gateway</html>')
+      expect(derivePublishExitCode(decideOutcome(response, 'contract'), response).exitCode).toBe(5)
+    })
   })
 
   it('4xx JSON 오류는 코드와 상관없이 4다(서버가 거절 = 저장 안 됨)', () => {

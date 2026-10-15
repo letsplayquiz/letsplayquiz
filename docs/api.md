@@ -197,6 +197,15 @@ Every error uses one shape:
 | 500 | `internal` | unexpected server error | nothing was saved |
 | 502 | `publish_unknown` | the server cannot confirm whether the quiz was saved | **outcome unknown**; do not blindly retry |
 | 503 | `unavailable` | temporary backend or rate-limit service outage | `Retry-After: 30`; nothing was saved |
+| 503 | `feature_unavailable` | the quiz uses a feature this server has not enabled yet; `error.feature` is `level` or `match` (`goodMatch`/`badMatch`) | no `Retry-After` (waiting does not help); nothing was saved. `error.message` says what to remove, then publish again |
+
+A 5xx error object may also carry `"saved": false`. The server can include it when it is certain that nothing was saved:
+
+```json
+{ "ok": false, "lang": "en", "error": { "code": "unavailable", "message": "...", "saved": false } }
+```
+
+A client may then treat the failure as definite (the CLI exits `4` for any 5xx with `error.saved === false`, whatever the code). Only the boolean `false` counts. When `saved` is absent or has any other value, an unrecognized 5xx on `POST /api/v1/tests` means the outcome is unknown, like `publish_unknown`.
 
 Rate limiting applies per client address, separately to validating and to publishing. When limited, wait the number of seconds in `Retry-After` before trying again. The limits can change, so rely on the header rather than hard-coded numbers.
 

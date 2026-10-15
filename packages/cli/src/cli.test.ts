@@ -674,6 +674,47 @@ describe('서버가 결과 불명을 스스로 알림(publish_unknown) / 알려�
   })
 })
 
+describe('503 feature_unavailable(서버가 새 기능 입력을 거절)', () => {
+  const body = {
+    ok: false,
+    lang: 'ko',
+    error: { code: 'feature_unavailable', feature: 'match', message: '궁합(goodMatch·badMatch)은 아직 사용할 수 없어요. 이 필드를 빼면 발행할 수 있어요' },
+  }
+
+  it('종료 코드 4이고 서버 안내 문구가 사람용 출력에 그대로 보인다(결과 불명 문구에 묻히지 않는다)', async () => {
+    const file = path.join(tmpDir, 'quiz.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'type' }))
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(503, body)))
+    const io = makeIo()
+    const code = await run(['publish', file], io)
+    expect(code).toBe(4)
+    expect(io.stderrText()).toContain('이 필드를 빼면 발행할 수 있어요')
+    expect(io.stderrText()).not.toContain('발행됐을 수 있어요')
+    expect(await storeFileExists()).toBe(false)
+  })
+
+  it('--json이면 서버 본문(error.feature 포함)을 그대로 낸다', async () => {
+    const file = path.join(tmpDir, 'quiz.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'type' }))
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(503, body)))
+    const io = makeIo()
+    const code = await run(['publish', file, '--json'], io)
+    expect(code).toBe(4)
+    expect(JSON.parse(io.stdoutText())).toMatchObject({ ok: false, error: { code: 'feature_unavailable', feature: 'match' } })
+  })
+
+  it('error.saved === false인 모르는 5xx 코드도 4다(앞으로의 계약)', async () => {
+    const file = path.join(tmpDir, 'quiz.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    const saved = { ok: false, error: { code: 'brand_new_server_code', message: '저장하지 않았어요', saved: false } }
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(500, saved)))
+    const io = makeIo()
+    const code = await run(['publish', file], io)
+    expect(code).toBe(4)
+    expect(io.stderrText()).toContain('저장하지 않았어요')
+  })
+})
+
 describe('429/503과 --json', () => {
   it('429 --json 출력에 retryAfterSeconds를 덧붙인다', async () => {
     const file = path.join(tmpDir, 'quiz.json')

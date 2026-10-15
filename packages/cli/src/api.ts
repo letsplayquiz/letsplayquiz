@@ -309,11 +309,28 @@ export function redactOwnerSecrets(text: string): string {
   return text.replace(OWNER_FIELD_RE, '$1"[redacted]"').replace(OWNER_PATH_RE, '$1[redacted]')
 }
 
-/** publish에서 "확실히 실패"로 봐도 되는 유일한 4 오류 코드들. 이 목록에 없는
+/** publish에서 5xx여도 "확실히 실패"로 봐도 되는 4 오류 코드들. 이 목록에 없는
  * 코드(서버가 새 코드를 추가했거나, `publish_unknown`처럼 서버 스스로도
  * 결과를 모른다고 알리는 경우)는 안전한 쪽(5)으로 본다(2026-09-26 조율자
- * 결정 — T6 서버가 "결과 불명"을 502 `publish_unknown`으로 알리기 시작했다). */
-const DEFINITE_4_ERROR_CODES = new Set(['internal', 'unavailable', 'invalid_json', 'payload_too_large', 'unsupported_media_type'])
+ * 결정 — T6 서버가 "결과 불명"을 502 `publish_unknown`으로 알리기 시작했다).
+ * `feature_unavailable`(503)은 서버가 마이그레이션 미적용 기능(레벨형·궁합)이 들어
+ * 있는 입력을 저장 전에 거절한 것이라 저장이 일어날 수 없다 — 안내 문구("이 필드를
+ * 빼면 발행할 수 있다")가 결과 불명 문구에 묻히지 않게 확정 실패로 둔다. */
+const DEFINITE_4_ERROR_CODES = new Set([
+  'internal',
+  'unavailable',
+  'invalid_json',
+  'payload_too_large',
+  'unsupported_media_type',
+  'feature_unavailable',
+])
+
+/** 서버가 "저장하지 않았음이 확실하다"고 직접 알리는 신호: 오류 본문의
+ * `error.saved`가 불리언 `false`일 때만이다. 없거나 다른 값(`'false'`, `0`, `null`,
+ * `true` …)이면 신호로 보지 않는다. */
+function serverSaysNotSaved(outcome: Outcome): boolean {
+  return isRecord(outcome.json) && isRecord(outcome.json.error) && outcome.json.error.saved === false
+}
 
 /**
  * publish 전용: `decideOutcome`이 4를 냈어도 그 4가 정말 "확실한 실패"인지
@@ -326,11 +343,14 @@ const DEFINITE_4_ERROR_CODES = new Set(['internal', 'unavailable', 'invalid_json
  *   codex 지적) — 4xx는 서버가 요청 자체를 거절했다는 뜻이라 저장까지 갔을
  *   여지가 없다. (`validation_failed`·`rate_limited`는 이 분기에 오지 않는다
  *   — `decideOutcome`이 이미 1/3로 따로 뺐다.)
+ * - 상태가 **5xx**이고 `error.saved === false`(불리언 false)이면 코드와 상관없이
+ *   4다 — 서버가 저장하지 않았음을 직접 보증한 것이다. `saved`가 없거나 다른 값이면
+ *   이 규칙은 쓰지 않고 아래 허용 목록으로 판정한다.
  * - 상태가 **5xx**이고 `code`가 `DEFINITE_4_ERROR_CODES`에 없으면(서버가
  *   결과 불명을 스스로 알리는 `publish_unknown` 포함, 모르는 새 코드도
  *   포함) 5로 올린다 — 게이트웨이 뒤에서 무슨 일이 있었는지 알 수 없다.
- * - 그 밖의 4(`internal`·`unavailable`·`invalid_json`·`payload_too_large`·
- *   `unsupported_media_type`, 4xx 전부)는 그대로 4다.
+ * - 그 밖의 4(`internal`·`unavailable`·`feature_unavailable`·`invalid_json`·
+ *   `payload_too_large`·`unsupported_media_type`, 4xx 전부)는 그대로 4다.
  */
 export function derivePublishExitCode(outcome: Outcome, response: HttpResponse): { exitCode: ExitCode; raw?: string } {
   if (outcome.exitCode !== 4) return { exitCode: outcome.exitCode }
@@ -342,6 +362,8 @@ export function derivePublishExitCode(outcome: Outcome, response: HttpResponse):
     const raw = response.status >= 500 ? truncateRaw(redacted, 2000) : redacted
     return { exitCode: 5, raw }
   }
+
+  if (response.status >= 500 && serverSaysNotSaved(outcome)) return { exitCode: 4 }
 
   const code = outcomeErrorCode(outcome)
   if (code !== undefined && response.status >= 500 && !DEFINITE_4_ERROR_CODES.has(code)) {

@@ -134,6 +134,31 @@ describe('publish_quiz', () => {
     expect(b.content[0].text).toContain('Not published')
     expect(b.content[0].text).toContain('broken')
   })
+  it('503 feature_unavailable은 확정 실패라 Not published이고 서버 안내 문구가 그대로 보인다', async () => {
+    const message = 'Matches (goodMatch, badMatch) aren\'t available yet. Remove these fields and you can publish'
+    stubFetch(() => json(503, { ok: false, lang: 'en', error: { code: 'feature_unavailable', feature: 'match', message } }))
+    const r = await publishQuiz(ctx, { quiz })
+    expect(r.isError).toBe(true)
+    expect(r.content[0].text).toContain('Not published')
+    expect(r.content[0].text).toContain(message)
+    expect(r.content[0].text).not.toContain('MAY have been published')
+    expect(r.structuredContent).toMatchObject({ error: { code: 'feature_unavailable', feature: 'match' } })
+    await expect(fs.access(resolveStoreFile(ctx.store))).rejects.toThrow()
+  })
+  it('error.saved === false인 모르는 5xx 코드도 Not published다', async () => {
+    stubFetch(() => json(500, { ok: false, error: { code: 'brand_new_server_code', message: 'nothing was saved', saved: false } }))
+    const r = await publishQuiz(ctx, { quiz })
+    expect(r.isError).toBe(true)
+    expect(r.content[0].text).toContain('Not published')
+    expect(r.content[0].text).toContain('nothing was saved')
+    expect(r.content[0].text).not.toContain('MAY have been published')
+  })
+  it('saved가 없는 모르는 5xx 코드는 지금처럼 결과 불명이다', async () => {
+    stubFetch(() => json(500, { ok: false, error: { code: 'brand_new_server_code', message: 'm' } }))
+    const r = await publishQuiz(ctx, { quiz })
+    expect(r.isError).toBe(true)
+    expect(r.content[0].text).toContain('MAY have been published')
+  })
   it('결과 불명(소켓 끊김)은 MAY have been published, 재시도 금지', async () => {
     stubFetch(() => {
       throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNRESET' } })

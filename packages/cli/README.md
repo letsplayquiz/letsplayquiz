@@ -80,8 +80,9 @@ Codes 0 and 1 are decided by the `ok` field in the response body, not the HTTP s
 | `ok: true` but `slug`/`url`/`ownerUrl` missing | 5 |
 | Response that is neither JSON nor the contracted shape, with a 2xx or 5xx status | 5 |
 | 4xx with a contracted JSON error (any code except `validation_failed`/`rate_limited`): the server refused the request, so nothing was saved | 4 |
-| 5xx with a known contracted error (`internal`, `unavailable`, `invalid_json`, `payload_too_large`, `unsupported_media_type`) | 4 |
-| 5xx where the server itself reports an unknown outcome (`error.code: "publish_unknown"`) or an unknown new error code | 5 (the safe side) |
+| 5xx with a known contracted error (`internal`, `unavailable`, `feature_unavailable`, `invalid_json`, `payload_too_large`, `unsupported_media_type`) | 4 |
+| 5xx whose error object has `"saved": false` (the boolean `false`; the server says it is certain nothing was saved), whatever the code | 4 |
+| 5xx where the server itself reports an unknown outcome (`error.code: "publish_unknown"`) or an unknown new error code, without `"saved": false` | 5 (the safe side) |
 
 On 5, do not immediately `publish` the same content again; ask the user first. With `--json` the output is `{"ok":false,"error":{"code":"publish_unknown","message":"..."}}`, plus a `raw` field with the server's original response when there is one (human output shows it on a `원본 응답:` line), so a person can look for the play link in it. Because this may end up in CI logs, the dashboard token (the `/owner/…` path and the `ownerUrl` value) is printed as `[redacted]`.
 
