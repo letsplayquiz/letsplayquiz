@@ -47,7 +47,7 @@ export function createServer(
     {
       title: 'Publish a quiz',
       description:
-        'Publishes a PUBLIC quiz on letsplayquiz.net that anyone can open. Confirm with the user before calling this. Validate first. Returns the public url and an ownerUrl; the ownerUrl is the only proof of ownership and cannot be reissued, so show it to the user and keep it private. If the result says the quiz MAY have been published, or the call fails with a timeout or transport error and no result, treat it as MAY have been published: do not retry, ask the user.',
+        'Publishes a PUBLIC quiz on letsplayquiz.net that anyone can open. Confirm with the user before calling this. Validate first. Returns the public url and an ownerUrl; the ownerUrl is the only proof of ownership and cannot be reissued, so show it to the user and keep it private. If the result says the quiz MAY have been published, or the call fails with a timeout or transport error and no result, treat it as MAY have been published: do not retry, ask the user. A moderation_blocked blocker (content review) shows up only at publish and is not caught by validate_quiz beforehand. Do not reword or change the content and retry on your own: tell the user and fix it together.',
       inputSchema: {
         quiz,
         lang,

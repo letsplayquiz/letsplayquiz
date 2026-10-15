@@ -66,6 +66,13 @@ describe('validate_quiz', () => {
     expect(r.structuredContent).toMatchObject({ ok: true, blockers: [] })
     expect(r.content[0].text).toContain('title  w  hmm')
   })
+  it('경로가 빈 blocker도 줄 앞이 비지 않는다', async () => {
+    stubFetch(() =>
+      json(200, { ok: false, error: { code: 'validation_failed' }, blockers: [{ code: 'x', message: 'whole', path: [] }], warnings: [] }),
+    )
+    const r = await validateQuiz(ctx, { quiz, lang: 'ja' })
+    expect(r.content[0].text).toContain('\n(クイズ全体)  x  whole')
+  })
   it('검증 실패는 오류가 아니라 정상 결과(blockers)', async () => {
     stubFetch(() =>
       json(200, { ok: false, error: { code: 'validation_failed' }, blockers: [{ code: 'x', message: 'bad', path: ['questions', 0] }], warnings: [] }),
@@ -133,6 +140,20 @@ describe('publish_quiz', () => {
     expect(b.isError).toBe(true)
     expect(b.content[0].text).toContain('Not published')
     expect(b.content[0].text).toContain('broken')
+  })
+  it('검수 차단(경로가 빈 blocker)도 줄 앞이 비지 않는다 — lang을 따라 그린다', async () => {
+    const body = {
+      ok: false,
+      error: { code: 'validation_failed' },
+      blockers: [{ code: 'moderation_blocked', message: 'This content cannot be published', path: [] }],
+    }
+    stubFetch(() => json(400, body))
+    const en = await publishQuiz(ctx, { quiz, lang: 'en' })
+    expect(en.structuredContent).toMatchObject({ ok: false, published: false })
+    expect(en.content[0].text).toContain('\n(whole quiz)  moderation_blocked  This content cannot be published')
+    stubFetch(() => json(400, body))
+    const ko = await publishQuiz(ctx, { quiz })
+    expect(ko.content[0].text).toContain('\n(퀴즈 전체)  moderation_blocked  ')
   })
   it('503 feature_unavailable은 확정 실패라 Not published이고 서버 안내 문구가 그대로 보인다', async () => {
     const message = 'Matches (goodMatch, badMatch) aren\'t available yet. Remove these fields and you can publish'

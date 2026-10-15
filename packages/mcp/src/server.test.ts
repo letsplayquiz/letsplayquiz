@@ -27,6 +27,10 @@ describe('createServer', () => {
     })
     expect(by.publish_quiz.description).toContain('PUBLIC')
     expect(by.publish_quiz.description).toContain('Confirm with the user')
+    // 검수 차단은 publish에서만 나온다 — 에이전트가 혼자 내용을 바꿔 재시도하지 않게 도구 설명이 말해 준다.
+    expect(by.publish_quiz.description).toContain('moderation_blocked')
+    expect(by.publish_quiz.description).toMatch(/not caught by validate/i)
+    expect(by.publish_quiz.description).toMatch(/do not (reword|change)[^.]*retry/i)
     await client.close()
   })
 

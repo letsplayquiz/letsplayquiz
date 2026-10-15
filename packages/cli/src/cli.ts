@@ -120,7 +120,7 @@ function printPublishUnknown(io: Io, args: ParsedArgs, rawText?: string): void {
 
 /** validate(그리고 publish 실패 경로)의 사람용 출력. blocker가 없어도 warning은
  * 보여 준다 — AI가 발행 전에 고칠 여지를 놓치지 않게 한다. */
-function printOutcomeHuman(outcome: Outcome, io: Io): void {
+function printOutcomeHuman(outcome: Outcome, io: Io, lang?: string): void {
   if (outcome.exitCode === 3) {
     io.stderr(`요청이 많아요. ${retryMessage(outcome.retryAfterSeconds)}\n`)
     return
@@ -129,7 +129,7 @@ function printOutcomeHuman(outcome: Outcome, io: Io): void {
   if (isRecord(body) && body.ok === false) {
     const blockers = Array.isArray(body.blockers) ? body.blockers : []
     if (blockers.length > 0) {
-      io.stdout(`${formatIssues(blockers)}\n`)
+      io.stdout(`${formatIssues(blockers, lang)}\n`)
       return
     }
     const message = isRecord(body.error) ? String(body.error.message ?? '') : ''
@@ -141,7 +141,7 @@ function printOutcomeHuman(outcome: Outcome, io: Io): void {
     const warnings = Array.isArray(body.warnings) ? body.warnings : []
     if (warnings.length > 0) {
       io.stdout('경고:\n')
-      io.stdout(`${formatIssues(warnings)}\n`)
+      io.stdout(`${formatIssues(warnings, lang)}\n`)
     }
     return
   }
@@ -187,7 +187,7 @@ async function runGuide(args: ParsedArgs, io: Io, ua: string): Promise<number> {
     return 0
   }
   if (args.json) printJson(outcome, io)
-  else printOutcomeHuman(outcome, io)
+  else printOutcomeHuman(outcome, io, args.lang)
   return outcome.exitCode
 }
 
@@ -211,7 +211,7 @@ async function runValidate(args: ParsedArgs, io: Io, ua: string): Promise<number
   }
   const outcome = decideOutcome(result.response, 'contract')
   if (args.json) printJson(outcome, io)
-  else printOutcomeHuman(outcome, io)
+  else printOutcomeHuman(outcome, io, args.lang)
   return outcome.exitCode
 }
 
@@ -265,7 +265,7 @@ async function runPublish(args: ParsedArgs, io: Io, ua: string): Promise<number>
       const warnings = Array.isArray(body.warnings) ? body.warnings : []
       if (warnings.length > 0) {
         io.stdout('경고:\n')
-        io.stdout(`${formatIssues(warnings)}\n`)
+        io.stdout(`${formatIssues(warnings, args.lang)}\n`)
       }
     }
 
@@ -295,7 +295,7 @@ async function runPublish(args: ParsedArgs, io: Io, ua: string): Promise<number>
   }
 
   if (args.json) printJson(outcome, io)
-  else printOutcomeHuman(outcome, io)
+  else printOutcomeHuman(outcome, io, args.lang)
   return outcome.exitCode
 }
 

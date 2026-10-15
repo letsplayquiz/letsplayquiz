@@ -83,3 +83,30 @@ describe('formatIssues', () => {
     expect(() => formatIssues([null, 1, 'x', undefined, []])).not.toThrow()
   })
 })
+
+describe('경로가 빈 blocker(퀴즈 전체에 걸린 것, 예: moderation_blocked)', () => {
+  const issue = { code: 'moderation_blocked', message: '이 내용은 올릴 수 없어요', path: [] }
+
+  it('줄 앞이 빈칸이 되지 않게 기본(ko)은 (퀴즈 전체)로 그린다', () => {
+    expect(formatIssueLine(issue)).toBe('(퀴즈 전체)  moderation_blocked  이 내용은 올릴 수 없어요')
+  })
+
+  it('메시지 언어를 따라 ja·en으로 그린다', () => {
+    expect(formatIssueLine(issue, 'ja')).toBe('(クイズ全体)  moderation_blocked  이 내용은 올릴 수 없어요')
+    expect(formatIssueLine(issue, 'en')).toBe('(whole quiz)  moderation_blocked  이 내용은 올릴 수 없어요')
+    expect(formatIssueLine(issue, 'ko')).toBe('(퀴즈 전체)  moderation_blocked  이 내용은 올릴 수 없어요')
+  })
+
+  it('formatIssues가 언어를 넘긴다', () => {
+    const issues = [issue, { code: 'choice_count', message: 'm', path: ['questions', 0, 'choices'] }]
+    expect(formatIssues(issues, 'en')).toBe('(whole quiz)  moderation_blocked  이 내용은 올릴 수 없어요\nquestions[0].choices  choice_count  m')
+  })
+
+  it('경로가 있는 줄은 언어와 상관없이 그대로다', () => {
+    expect(formatIssueLine({ code: 'x', message: 'm', path: ['title'] }, 'ja')).toBe('title  x  m')
+  })
+
+  it('formatPath([])는 그대로 빈 문자열이다(라벨은 줄 그리기에서만 붙인다)', () => {
+    expect(formatPath([])).toBe('')
+  })
+})

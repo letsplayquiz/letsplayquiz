@@ -27,10 +27,20 @@ export function formatPath(path: unknown): string {
   }, '')
 }
 
-/** 한 줄: `경로  코드  메시지`. `issue`가 온전한 모양이 아니어도 최선을 다해 그린다. */
-export function formatIssueLine(issue: unknown): string {
+// 경로가 빈 배열(`[]`)인 issue는 본문 전체에 걸린 것이다(예: 검수 차단 `moderation_blocked`).
+// 그대로 그리면 줄 앞이 빈칸이라 "경로  코드  메시지" 열이 무너지므로 라벨로 채운다.
+// 라벨은 서버 메시지 언어(--lang)를 따른다 — 같은 줄의 메시지와 언어가 어긋나지 않게.
+const WHOLE_QUIZ_LABEL = { ko: '(퀴즈 전체)', ja: '(クイズ全体)', en: '(whole quiz)' } as const
+
+function wholeQuizLabel(lang: string | undefined): string {
+  return WHOLE_QUIZ_LABEL[lang as keyof typeof WHOLE_QUIZ_LABEL] ?? WHOLE_QUIZ_LABEL.ko
+}
+
+/** 한 줄: `경로  코드  메시지`. `issue`가 온전한 모양이 아니어도 최선을 다해 그린다.
+ * `lang`은 서버 메시지 언어(`ko`가 기본) — 경로가 빈 issue의 라벨 언어를 정한다. */
+export function formatIssueLine(issue: unknown, lang?: string): string {
   const obj = isRecordLike(issue) ? issue : {}
-  const path = formatPath(obj.path)
+  const path = Array.isArray(obj.path) && obj.path.length === 0 ? wholeQuizLabel(lang) : formatPath(obj.path)
   const code = typeof obj.code === 'string' ? obj.code : '?'
   const message = typeof obj.message === 'string' ? obj.message : ''
   // tie_unresolved만 typeKeys(동점 유형의 key)를 갖는다 — 사람도 바로 옮겨 적게 보여 준다.
@@ -40,6 +50,6 @@ export function formatIssueLine(issue: unknown): string {
   return `${path}  ${code}  ${message}${keys}`
 }
 
-export function formatIssues(issues: unknown[]): string {
-  return issues.map(formatIssueLine).join('\n')
+export function formatIssues(issues: unknown[], lang?: string): string {
+  return issues.map((issue) => formatIssueLine(issue, lang)).join('\n')
 }

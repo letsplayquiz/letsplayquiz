@@ -674,6 +674,53 @@ describe('서버가 결과 불명을 스스로 알림(publish_unknown) / 알려�
   })
 })
 
+describe('경로가 빈 blocker(퀴즈 전체) — 검수 차단 moderation_blocked', () => {
+  const body = {
+    ok: false,
+    lang: 'en',
+    error: { code: 'validation_failed', message: '1 blocker' },
+    blockers: [{ code: 'moderation_blocked', message: 'This content cannot be published', path: [] }],
+    warnings: [],
+  }
+
+  it('publish 400의 사람용 출력은 줄 앞이 비지 않고 --lang en이면 (whole quiz)로 그린다', async () => {
+    const file = path.join(tmpDir, 'quiz.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(400, body)))
+    const io = makeIo()
+    const code = await run(['publish', file, '--lang', 'en'], io)
+    expect(code).toBe(1)
+    expect(io.stdoutText()).toBe('(whole quiz)  moderation_blocked  This content cannot be published\n')
+  })
+
+  it('--lang을 안 주면 ko, ja면 일본어 표기다', async () => {
+    const file = path.join(tmpDir, 'quiz.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(400, body)))
+    const ko = makeIo()
+    await run(['publish', file], ko)
+    expect(ko.stdoutText()).toMatch(/^\(퀴즈 전체\)  moderation_blocked  /)
+    const ja = makeIo()
+    await run(['publish', file, '--lang', 'ja'], ja)
+    expect(ja.stdoutText()).toMatch(/^\(クイズ全体\)  moderation_blocked  /)
+  })
+
+  it('경고도 같은 표기를 쓰고 --json은 서버 본문을 건드리지 않는다', async () => {
+    const file = path.join(tmpDir, 'quiz.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    const passing = { ok: true, blockers: [], warnings: [{ code: 'w', message: 'heads up', path: [] }] }
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(200, passing)))
+    const human = makeIo()
+    await run(['validate', file, '--lang', 'en'], human)
+    expect(human.stdoutText()).toContain('(whole quiz)  w  heads up')
+
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(400, body)))
+    const json = makeIo()
+    await run(['publish', file, '--json'], json)
+    expect(JSON.parse(json.stdoutText()).blockers).toEqual(body.blockers)
+  })
+})
+
 describe('503 feature_unavailable(서버가 새 기능 입력을 거절)', () => {
   const body = {
     ok: false,

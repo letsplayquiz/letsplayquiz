@@ -138,15 +138,15 @@ export async function validateQuiz(
   if (outcome.exitCode === 0 && isRecord(body)) {
     const warnings = arrayOf(body.warnings)
     const lines = ['Validation passed. Safe to publish.']
-    if (warnings.length > 0) lines.push('Warnings:', formatIssues(warnings))
+    if (warnings.length > 0) lines.push('Warnings:', formatIssues(warnings, args.lang))
     return text(lines.join('\n'), { structuredContent: { ok: true, blockers: [], warnings } })
   }
   // 검증 실패는 정상 결과다(MCP 오류가 아니다) — 에이전트가 고쳐서 다시 부른다.
   if (outcome.exitCode === 1 && isRecord(body)) {
     const blockers = arrayOf(body.blockers)
     const warnings = arrayOf(body.warnings)
-    const lines = ['Validation failed. Fix the blockers and validate again.', 'Blockers:', formatIssues(blockers)]
-    if (warnings.length > 0) lines.push('Warnings:', formatIssues(warnings))
+    const lines = ['Validation failed. Fix the blockers and validate again.', 'Blockers:', formatIssues(blockers, args.lang)]
+    if (warnings.length > 0) lines.push('Warnings:', formatIssues(warnings, args.lang))
     return text(lines.join('\n'), { structuredContent: { ok: false, blockers, warnings } })
   }
   return failureResult(outcome, result.response.status)
@@ -218,7 +218,7 @@ export async function publishQuiz(
       `ownerUrl: ${body.ownerUrl}`,
       'WARNING: ownerUrl is the only proof of ownership and cannot be reissued. Keep it private and give it only to the creator.',
     ]
-    if (warnings.length > 0) lines.push('Warnings:', formatIssues(warnings))
+    if (warnings.length > 0) lines.push('Warnings:', formatIssues(warnings, args.lang))
     let saved = false
     if (save) {
       const title = typeof args.quiz.title === 'string' ? args.quiz.title : ''
@@ -247,8 +247,8 @@ export async function publishQuiz(
   if (outcome.exitCode === 1 && isRecord(body)) {
     const blockers = arrayOf(body.blockers)
     const warnings = arrayOf(body.warnings)
-    const lines = ['Not published: validation failed.', 'Blockers:', formatIssues(blockers)]
-    if (warnings.length > 0) lines.push('Warnings:', formatIssues(warnings))
+    const lines = ['Not published: validation failed.', 'Blockers:', formatIssues(blockers, args.lang)]
+    if (warnings.length > 0) lines.push('Warnings:', formatIssues(warnings, args.lang))
     return text(lines.join('\n'), { structuredContent: { ok: false, published: false, blockers, warnings } })
   }
   const r = failureResult(outcome, result.response.status)
