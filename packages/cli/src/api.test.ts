@@ -85,6 +85,72 @@ describe('fetchGuide / postJson', () => {
   })
 })
 
+describe('리다이렉트는 따라가지 않는다', () => {
+  it('fetchGuide·postJson 모두 redirect: manual로 부른다(따라가면 https 검사를 피해 갈 수 있다)', async () => {
+    const fetchSpy = vi.fn(async () => jsonResponse(200, { ok: true }))
+    vi.stubGlobal('fetch', fetchSpy)
+    await fetchGuide('https://api.example', { asJson: false }, 'letsplayquiz/1.0.0')
+    await postJson('https://api.example', '/api/v1/tests', { a: 1 }, {}, 'letsplayquiz/1.0.0')
+    for (const call of fetchSpy.mock.calls) {
+      expect((call as unknown as [string, RequestInit])[1].redirect).toBe('manual')
+    }
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('httpFetch는 3xx 응답을 그대로 돌려준다(Location을 읽을 수 있게)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 307, headers: { location: 'https://other.example/api/v1/tests' } })))
+    const result = await httpFetch('https://api.example/api/v1/tests', { method: 'POST', body: '{}' })
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.response.status).toBe(307)
+      expect(result.response.headers.get('location')).toBe('https://other.example/api/v1/tests')
+    }
+  })
+
+  it.each([301, 302, 303, 307, 308])('%i + Location → 4, error.code redirected, 안내 문구에 Location과 --api가 있다', (status) => {
+    const location = 'https://www.example.test/api/v1/tests'
+    for (const mode of ['guide', 'contract'] as const) {
+      const outcome = decideOutcome(makeHttpResponse(status, '', { location }), mode)
+      expect(outcome.exitCode).toBe(4)
+      const error = (outcome.json as { ok: boolean; error: Record<string, unknown> }).error
+      expect((outcome.json as { ok: boolean }).ok).toBe(false)
+      expect(error.code).toBe('redirected')
+      expect(error.location).toBe(location)
+      expect(error.status).toBe(status)
+      expect(String(error.message)).toContain(`서버가 다른 주소로 보냈어요: ${location}`)
+      expect(String(error.message)).toContain('--api')
+    }
+  })
+
+  it('publish에서도 4다 — 요청을 다시 보내지 않으므로 5로 올리지 않는다', () => {
+    const response = makeHttpResponse(308, '', { location: 'https://www.example.test/api/v1/tests' })
+    const outcome = decideOutcome(response, 'contract')
+    expect(derivePublishExitCode(outcome, response)).toEqual({ exitCode: 4 })
+  })
+
+  it('Location이 상대 경로여도 그대로 보여 준다', () => {
+    const outcome = decideOutcome(makeHttpResponse(301, '', { location: '/sub/api/v1/tests' }), 'contract')
+    expect((outcome.json as { error: { message: string } }).error.message).toContain('/sub/api/v1/tests')
+  })
+
+  it('Location의 제어 문자는 지우고 너무 길면 자른다(서버가 준 글자를 터미널·에이전트에 그대로 흘리지 않는다)', () => {
+    const evil = `https://x.test/\u001b[31m\u0007IGNORE-ME${'a'.repeat(1000)}`
+    const outcome = decideOutcome(makeHttpResponse(302, '', { location: evil }), 'contract')
+    const error = (outcome.json as { error: { message: string; location: string } }).error
+    expect(error.location).not.toMatch(/[\u0000-\u001f\u007f]/)
+    expect(error.message).not.toMatch(/[\u0000-\u001f\u007f]/)
+    expect(error.location.length).toBeLessThanOrEqual(301)
+  })
+
+  it('Location이 없는 3xx(304 포함)는 리다이렉트 안내가 아니라 기존대로 계약 위반 4다', () => {
+    for (const status of [300, 304, 302]) {
+      const outcome = decideOutcome(makeHttpResponse(status, ''), 'contract')
+      expect(outcome.exitCode).toBe(4)
+      expect((outcome.json as { error: { code: string } }).error.code).toBe('bad_response')
+    }
+  })
+})
+
 describe('decideOutcome', () => {
   it('validate 200 ok:true → 0', () => {
     expect(decideOutcome(makeHttpResponse(200, JSON.stringify({ ok: true, blockers: [], warnings: [] }))).exitCode).toBe(0)
@@ -691,6 +757,44 @@ describe('httpFetch — 실제 net/http 서버', () => {
       }
     } finally {
       await close(server)
+    }
+  })
+
+  it('다른 주소로 보내는 서버: 따라가지 않고 두 번째 서버는 요청을 받지 못한다(POST 본문 재전송 없음) → publish 4', async () => {
+    let targetHits = 0
+    const target = http.createServer((req, res) => {
+      targetHits += 1
+      req.resume()
+      res.writeHead(201, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ ok: true, slug: 'a', url: 'u', ownerUrl: 'o' }))
+    })
+    const targetPort = await listen(target)
+    let sourceHits = 0
+    const source = http.createServer((req, res) => {
+      sourceHits += 1
+      req.on('data', () => {})
+      req.on('end', () => {
+        res.writeHead(307, { location: `http://127.0.0.1:${targetPort}/api/v1/tests` })
+        res.end('moved')
+      })
+    })
+    const sourcePort = await listen(source)
+    try {
+      const result = await postJson(`http://127.0.0.1:${sourcePort}`, '/api/v1/tests', { kind: 'balance' }, {}, 'letsplayquiz/1.0.0')
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        const outcome = decideOutcome(result.response, 'contract')
+        expect(derivePublishExitCode(outcome, result.response).exitCode).toBe(4)
+        expect((outcome.json as { error: { code: string; location: string } }).error).toMatchObject({
+          code: 'redirected',
+          location: `http://127.0.0.1:${targetPort}/api/v1/tests`,
+        })
+      }
+      expect(sourceHits).toBe(1)
+      expect(targetHits).toBe(0)
+    } finally {
+      await close(source)
+      await close(target)
     }
   })
 })

@@ -52,7 +52,7 @@ Kind-specific fields (`kind`, `questions`, `resultTypes`, …) are described wit
 |---|---|
 | `--json` | Print the raw server response (or the `list` records) |
 | `--lang ko\|ja\|en` | Language of server text (query `lang`, default `ko`): validation messages, errors, and the `guide` text and examples. The CLI's own messages (connection failures, exit hints) are currently in Korean |
-| `--api <url>` | Server URL. `https` only (`http://localhost` and `http://127.0.0.1` are allowed for local development; other `http` URLs are refused because the dashboard link would travel in plain text). Also settable with the `LETSPLAYQUIZ_API` environment variable (the flag wins). Default `https://letsplayquiz.net` |
+| `--api <url>` | Server URL. `https` only (`http://localhost` and `http://127.0.0.1` are allowed for local development; other `http` URLs are refused because the dashboard link would travel in plain text). Also settable with the `LETSPLAYQUIZ_API` environment variable (the flag wins). Default `https://letsplayquiz.net`. The CLI never follows redirects (a redirect could send your quiz to another address, or past the `https` check): if the server answers with one, it exits `4`, prints the `Location` and asks you to pass that server address with `--api` |
 | `--no-save` | Do not record the `publish` result in the local history file |
 | `--help` | Show help |
 | `--version` | Show version |

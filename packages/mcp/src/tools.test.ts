@@ -46,6 +46,15 @@ describe('get_guide', () => {
     expect(r.isError).toBe(true)
     expect(r.structuredContent).toMatchObject({ error: { code: 'bad_response' } })
   })
+  it('리다이렉트는 따라가지 않고 오류(영어 안내)', async () => {
+    const f = stubFetch(() => new Response('', { status: 301, headers: { location: 'https://www.example.test/api/v1/guide' } }))
+    const r = await getGuide(ctx, {})
+    expect(f).toHaveBeenCalledTimes(1)
+    expect(f.mock.calls[0][1]?.redirect).toBe('manual')
+    expect(r.isError).toBe(true)
+    expect(r.content[0].text).toContain('https://www.example.test/api/v1/guide')
+    expect(r.content[0].text).not.toMatch(/[가-힣]/)
+  })
   it('연결 실패는 오류', async () => {
     stubFetch(() => {
       throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNREFUSED' } })
@@ -154,6 +163,21 @@ describe('publish_quiz', () => {
     stubFetch(() => json(400, body))
     const ko = await publishQuiz(ctx, { quiz })
     expect(ko.content[0].text).toContain('\n(퀴즈 전체)  moderation_blocked  ')
+  })
+  it('서버가 다른 주소로 보내면(리다이렉트) 따라가지 않고 Not published, LETSPLAYQUIZ_API 안내를 영어로 낸다', async () => {
+    const location = 'https://www.example.test/api/v1/tests'
+    const f = stubFetch(() => new Response('', { status: 307, headers: { location } }))
+    const r = await publishQuiz(ctx, { quiz })
+    expect(f).toHaveBeenCalledTimes(1)
+    expect(f.mock.calls[0][1]?.redirect).toBe('manual')
+    expect(r.isError).toBe(true)
+    expect(r.content[0].text).toContain('Not published')
+    expect(r.content[0].text).toContain(location)
+    expect(r.content[0].text).toContain('LETSPLAYQUIZ_API')
+    expect(r.content[0].text).not.toContain('MAY have been published')
+    expect(r.content[0].text).not.toMatch(/[가-힣]/)
+    expect(r.structuredContent).toMatchObject({ ok: false, error: { code: 'redirected', location } })
+    await expect(fs.access(resolveStoreFile(ctx.store))).rejects.toThrow()
   })
   it('503 feature_unavailable은 확정 실패라 Not published이고 서버 안내 문구가 그대로 보인다', async () => {
     const message = 'Matches (goodMatch, badMatch) aren\'t available yet. Remove these fields and you can publish'

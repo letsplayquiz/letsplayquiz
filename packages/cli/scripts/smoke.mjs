@@ -111,6 +111,46 @@ async function main() {
       await new Promise((resolve) => dropServer.close(resolve))
     }
 
+    // 4-2) 서버가 다른 주소로 보내면(리다이렉트) 따라가지 않는다 — 두 번째 서버는 요청을
+    // 받지 못하고, 종료 코드는 4(확정 오류)여야 한다. 따라가면 --api의 https 검사를 피해
+    // 발행 본문이 엉뚱한 곳으로 재전송된다.
+    let redirectTargetHits = 0
+    const redirectTarget = http.createServer((req, res) => {
+      redirectTargetHits += 1
+      req.resume()
+      res.end('{}')
+    })
+    await new Promise((resolve) => redirectTarget.listen(0, '127.0.0.1', resolve))
+    const redirectSource = http.createServer((req, res) => {
+      req.on('data', () => {})
+      req.on('end', () => {
+        res.writeHead(307, { location: `http://127.0.0.1:${redirectTarget.address().port}/api/v1/tests` })
+        res.end()
+      })
+    })
+    await new Promise((resolve) => redirectSource.listen(0, '127.0.0.1', resolve))
+    try {
+      const port = redirectSource.address().port
+      const testFile = path.join(tmp, 'redirect-quiz.json')
+      await writeFile(testFile, JSON.stringify({ kind: 'balance', title: '스모크 테스트' }))
+      let redirectFailed = false
+      try {
+        await execFileAsync(process.execPath, [linkPath, 'publish', testFile, '--api', `http://127.0.0.1:${port}`])
+      } catch (e) {
+        redirectFailed = true
+        if (e.code !== 4) throw new Error(`리다이렉트인데 종료 코드가 4가 아니에요: ${e.code}`)
+        if (!String(e.stderr).includes('서버가 다른 주소로 보냈어요')) {
+          throw new Error(`리다이렉트 안내 문구가 없어요: ${JSON.stringify(e.stderr)}`)
+        }
+      }
+      if (!redirectFailed) throw new Error('리다이렉트인데 성공(exit 0)했어요')
+      if (redirectTargetHits !== 0) throw new Error(`리다이렉트를 따라갔어요(두 번째 서버가 요청 ${redirectTargetHits}건을 받음)`)
+      console.log('OK  publish (서버가 다른 주소로 보냄) → 따라가지 않고 exit 4')
+    } finally {
+      await new Promise((resolve) => redirectSource.close(resolve))
+      await new Promise((resolve) => redirectTarget.close(resolve))
+    }
+
     // 5) 본 패키지(letsplayquiz)의 npm pack --dry-run 파일 목록에 bin이
     // 가리키는 dist/bin.js가 있는지(스펙 §7.3, §10). 이건 빌드 산출물이
     // 있어야 의미가 있어서 vitest가 아니라 여기서 확인한다.

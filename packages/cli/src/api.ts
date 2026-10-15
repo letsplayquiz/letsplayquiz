@@ -78,7 +78,11 @@ export async function httpFetch(
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   let res: Response
   try {
-    res = await fetch(url, { ...init, signal: controller.signal })
+    // 리다이렉트는 따라가지 않는다(`manual`: Node는 3xx 응답을 그대로 돌려준다). 따라가면
+    // 서버가 보낸 곳으로 요청을 다시 보내게 된다 — `--api`의 https 검사를 피해 평문 http로
+    // 발행 본문(과 응답의 ownerUrl)이 오가거나, 의도하지 않은 서버에 POST가 재전송된다.
+    // 3xx 처리는 `decideOutcome`이 한다.
+    res = await fetch(url, { ...init, redirect: 'manual', signal: controller.signal })
   } catch (e) {
     clearTimeout(timer)
     if (controller.signal.aborted) return { ok: false, failure: { kind: 'timeout' } }
@@ -221,6 +225,21 @@ function parseRetryAfterSeconds(header: string | null): number | undefined {
 
 export type ResponseMode = 'guide' | 'contract'
 
+// Location 헤더가 있고 의미가 "다른 주소로 가라"인 상태 코드. 300(선택지)·304(변경 없음)는 뺀다.
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
+const MAX_LOCATION_CHARS = 300
+
+/** 서버가 준 Location을 사람·에이전트에게 보여 주기 좋게 다듬는다 — 제어 문자(터미널
+ * 이스케이프 등)를 지우고 너무 길면 자른다. 안내할 값이 없으면 `undefined`. */
+function redirectLocation(response: HttpResponse): string | undefined {
+  if (!REDIRECT_STATUSES.has(response.status)) return undefined
+  const raw = response.headers.get('location')
+  if (raw === null) return undefined
+  const cleaned = raw.replace(/[\u0000-\u001f\u007f-\u009f]/g, '').trim()
+  if (cleaned === '') return undefined
+  return cleaned.length > MAX_LOCATION_CHARS ? `${cleaned.slice(0, MAX_LOCATION_CHARS)}…` : cleaned
+}
+
 /**
  * 서버 응답을 종료 코드로 바꾼다(스펙 §7.4). **상태 코드가 아니라 본문 `ok`로
  * 0/1을 가른다** — validate는 실패해도 200을 낸다. 3/4는 `error.code`로 가른다.
@@ -245,6 +264,24 @@ export function decideOutcome(response: HttpResponse, mode: ResponseMode = 'cont
   }
 
   const retryAfterSeconds = parseRetryAfterSeconds(response.headers.get('retry-after'))
+
+  // 서버가 다른 주소로 보냈다. 따라가지 않았으므로(httpFetch) 요청은 한 번만 나갔고, 그
+  // 응답은 결과가 아니라 "주소를 바꿔 다시 하라"는 안내다 — 확정 오류(4)로 끝낸다.
+  const location = redirectLocation(response)
+  if (location !== undefined) {
+    return {
+      exitCode: 4,
+      json: {
+        ok: false,
+        error: {
+          code: 'redirected',
+          message: `서버가 다른 주소로 보냈어요: ${location} — --api로 그 서버 주소를 직접 지정해 주세요`,
+          status: response.status,
+          location,
+        },
+      },
+    }
+  }
 
   const classifyError = (body: Record<string, unknown>): Outcome => {
     const code = isRecord(body.error) ? body.error.code : undefined

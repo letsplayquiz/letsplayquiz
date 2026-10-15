@@ -721,6 +721,51 @@ describe('경로가 빈 blocker(퀴즈 전체) — 검수 차단 moderation_bloc
   })
 })
 
+describe('서버가 다른 주소로 보낼 때(리다이렉트)', () => {
+  const location = 'https://www.example.test/api/v1/tests'
+  function redirectFetch(status = 307) {
+    const spy = vi.fn(async () => new Response('', { status, headers: { location } }))
+    vi.stubGlobal('fetch', spy)
+    return spy
+  }
+
+  it('publish: 4, 한 번만 부르고(재전송 없음), Location과 --api 안내를 보이고, 기록은 남기지 않는다', async () => {
+    const file = path.join(tmpDir, 'quiz.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    const spy = redirectFetch()
+    const io = makeIo()
+    const code = await run(['publish', file], io)
+    expect(code).toBe(4)
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect((spy.mock.calls[0] as unknown as [string, RequestInit])[1].redirect).toBe('manual')
+    expect(io.stderrText()).toContain(`서버가 다른 주소로 보냈어요: ${location}`)
+    expect(io.stderrText()).toContain('--api')
+    expect(io.stderrText()).not.toContain('발행됐을 수 있어요')
+    expect(await storeFileExists()).toBe(false)
+  })
+
+  it('validate·guide도 4 + 같은 안내', async () => {
+    const file = path.join(tmpDir, 'quiz.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    redirectFetch(301)
+    const v = makeIo()
+    expect(await run(['validate', file], v)).toBe(4)
+    expect(v.stderrText()).toContain(location)
+    const g = makeIo()
+    expect(await run(['guide'], g)).toBe(4)
+    expect(g.stderrText()).toContain(location)
+  })
+
+  it('--json이면 error.code redirected와 location을 담은 JSON을 낸다', async () => {
+    const file = path.join(tmpDir, 'quiz.json')
+    await fs.writeFile(file, JSON.stringify({ kind: 'balance' }))
+    redirectFetch(308)
+    const io = makeIo()
+    expect(await run(['publish', file, '--json'], io)).toBe(4)
+    expect(JSON.parse(io.stdoutText())).toMatchObject({ ok: false, error: { code: 'redirected', location } })
+  })
+})
+
 describe('503 feature_unavailable(서버가 새 기능 입력을 거절)', () => {
   const body = {
     ok: false,

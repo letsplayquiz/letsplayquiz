@@ -114,6 +114,12 @@ export async function getGuide(
 function failureResult(outcome: ReturnType<typeof decideOutcome>, status: number): ToolResult {
   const json = sanitize(withRetryAfterField(outcome.json, outcome.retryAfterSeconds))
   const structured = isRecord(json) ? (json as Record<string, unknown>) : undefined
+  // CLI의 합성 오류 메시지는 한국어라, MCP에서는 같은 정보를 영어로 다시 쓴다.
+  if (structured && isRecord(structured.error) && structured.error.code === 'redirected') {
+    const location = typeof structured.error.location === 'string' ? structured.error.location : '(unknown)'
+    const message = `The server redirected the request to ${location}. Redirects are not followed. Set LETSPLAYQUIZ_API to that server address and restart the MCP server.`
+    return errorText(message, { ...structured, error: { ...structured.error, message } })
+  }
   if (outcome.exitCode === 3) {
     return errorText(`Rate limited. ${retryMessage(outcome.retryAfterSeconds)}`, structured)
   }
