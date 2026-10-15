@@ -106,7 +106,7 @@ npx letsplayquiz publish quiz.json --json
 ```
 
 - Exit code 0's JSON has `url` (the share link), `ownerUrl` (the results dashboard), and `listing` (`"none"` or `"requested"`). Tell the user which one it is — if `"requested"`, mention that it'll appear on the main page once an admin approves it or enough people play it, and that they can check or cancel this from the dashboard link. (Without `--json`, the CLI only prints `url`/`ownerUrl` in human-readable form — use `--json` whenever you asked about listing, so you have something to report back.)
-- **Exit code 5 means the result is unknown** — it may already be published. Do not publish again (that could create a duplicate); tell the user and suggest checking `npx letsplayquiz list` or trying the share link.
+- **Exit code 5 means the result is unknown** — it may already be published, and the CLI does not record anything in that case, so `npx letsplayquiz list` will not show it. Do not publish again on your own (that could create a duplicate). If the raw server response in the output (the `raw` field with `--json`, or the `원본 응답:` line) contains a `url`, show that to the user as the share link (owner links are redacted there, so the dashboard link can't be recovered). If there is no `url` (timeouts and dropped connections come with no response at all), explain what happened and let the user decide whether to publish again, since that may create a duplicate.
 - The CLI appends the result to `~/.config/letsplayquiz/tests.jsonl` so `npx letsplayquiz list` can show it later. If the user doesn't want a local record, add `--no-save`.
 
 ## 7. Hand over the links
