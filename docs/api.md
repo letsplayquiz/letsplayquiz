@@ -112,7 +112,7 @@ All the quiz-taking kinds share the same top-level shape. Strings are trimmed be
 | `title` | string | up to 40 characters, non-empty |
 | `description` | string | up to 300 characters (must be present; non-empty for `type`) |
 | `emoji` | string | optional, up to 8 characters |
-| `minScore` | integer | `level` only (required there): 0 to 2000, the lowest total that reaches this level |
+| `minScore` | integer | `level` (required): 0 to 2000, the lowest total that reaches this level. `score` bands (required on every band when bands are given): the lowest number of correct answers for this band, 0 to the number of questions |
 | `goodMatch`, `badMatch` | string | `type` only, optional: the `key` of another (or the same) result type. Omit the field for "none"; an empty string is rejected |
 
 `tieResults[]` (only with `tieRule: "custom"` on `type` quizzes):
@@ -127,7 +127,7 @@ All the quiz-taking kinds share the same top-level shape. Strings are trimmed be
 
 | Kind | Choices per question | `weights` | `resultTypes` |
 |---|---|---|---|
-| `score` | exactly 4 | exactly one choice has `{"correct": 1}`; the others `{}` | not used (`[]`) |
+| `score` | exactly 4 | exactly one choice has `{"correct": 1}` (the value must be exactly 1, anything else is `out_of_range`); the others `{}` | optional bands: `[]` shows the app's shared one-liners, or 2 to 16 bands named by the number of correct answers, each with `minScore` (first 0, strictly increasing, last at most the number of questions); `emoji` optional, `description` may be `""`, no `goodMatch`/`badMatch` |
 | `type` | 2 to 6 | each choice gives points to at least one declared result type key | 2 to 16 |
 | `level` | 2 to 6 | exactly `{"points": n}` with n an integer 0 to 100 (0 is valid) | 2 to 16 levels, each with `minScore` |
 | `balance` | exactly 2 | not used (`{}`) | not used (`[]`) |
@@ -200,7 +200,7 @@ Every error uses one shape:
 | 500 | `internal` | unexpected server error | nothing was saved |
 | 502 | `publish_unknown` | the server cannot confirm whether the quiz was saved | **outcome unknown**; do not blindly retry |
 | 503 | `unavailable` | temporary backend or rate-limit service outage | `Retry-After: 30`; nothing was saved |
-| 503 | `feature_unavailable` | the quiz uses a feature this server has not enabled yet; `error.feature` is `level` or `match` (`goodMatch`/`badMatch`) | no `Retry-After` (waiting does not help); nothing was saved. `error.message` says what to remove, then publish again |
+| 503 | `feature_unavailable` | the quiz uses a feature this server has not enabled yet; `error.feature` is `level`, `match` (`goodMatch`/`badMatch`) or `bands` (score bands) | no `Retry-After` (waiting does not help); nothing was saved. `error.message` says what to remove, then publish again |
 
 A 5xx error object may also carry `"saved": false`. The server can include it when it is certain that nothing was saved:
 
